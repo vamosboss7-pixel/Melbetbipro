@@ -1,0 +1,44 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "2rUHtPExRmjv9EeCiaFPB"
+uri = "file://melkam_bingo_announcement.txt"
+type = "text"
+title = "Melkam Bingo Announcement"
+
+[[outputs]]
+id = "cDBZj2tU0QrQNYWSg9D7_"
+uri = "file://artifacts/bingo-app/src/data/cartelas.ts"
+type = "unspecified"
+title = "Frontend Cartelas (cartelas.ts)"
+
+[[outputs]]
+id = "q8JHtE1h8kNZfyDsS5U5E"
+uri = "file://artifacts/api-server/src/data/cartelas.ts"
+type = "unspecified"
+title = "Backend Cartelas (cartelas.ts)"
+
+[[outputs]]
+id = "QML9CllYAw04sNahyWEuR"
+uri = "file://cartelas_frontend.txt"
+type = "text"
+title = "Frontend Cartelas (txt)"
+
+[[outputs]]
+id = "0-mzK-3DIQc9Xl5RuvqJZ"
+uri = "file://cartelas_backend.txt"
+type = "text"
+title = "Backend Cartelas (txt)"
+
+[[outputs]]
+id = "SQo-uiDqgQw9a9E6XE_5M"
+uri = "file://attached_assets/cartelas_frontend.txt"
+type = "text"
+title = "cartelas_frontend.txt"
+
+[[outputs]]
+id = "m-mFlO0qewC22aIb8xa4S"
+uri = "file://attached_assets/cartelas_backend.txt"
+type = "text"
+title = "cartelas_backend.txt"

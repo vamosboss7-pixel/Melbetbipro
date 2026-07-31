@@ -1,0 +1,1 @@
+- [Room settings key convention](room-settings-convention.md) — per-room bingo settings live in app_settings as `roomN_<key>`; removing a room means updating settings.ts, admin routes, gameSocket, and DB together.

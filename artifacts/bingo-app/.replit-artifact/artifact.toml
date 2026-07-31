@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Beteseb Bingo"
+version = "1.0.0"
+id = "artifacts/bingo-app"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 23158
+
+[services.development]
+run = "pnpm --filter @workspace/bingo-app run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bingo-app", "run", "build" ]
+publicDir = "artifacts/bingo-app/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "23158"
+BASE_PATH = "/"

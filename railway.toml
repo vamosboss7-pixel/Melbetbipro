@@ -1,0 +1,11 @@
+[build]
+builder = "nixpacks"
+buildCommand = "pnpm install --no-frozen-lockfile && pnpm run build"
+
+[deploy]
+# Push DB schema before starting so the database is always in sync with the code.
+# Uses --force to allow drizzle-kit to apply structural changes (e.g. PK migrations)
+# without interactive prompts. Safe because all schema changes are reviewed in code.
+startCommand = "pnpm --filter @workspace/db run push-force 2>&1 || echo '[railway] DB schema push failed — skipping, server will attempt to start'; node artifacts/api-server/dist/index.mjs"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3

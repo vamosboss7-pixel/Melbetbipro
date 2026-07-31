@@ -1,0 +1,1016 @@
+import { randomUUID, randomInt } from "crypto";
+import type { Server, Socket, Namespace } from "socket.io";
+import { logger } from "./logger";
+import { db } from "./db";
+import { CARTELAS } from "../data/cartelas";
+import { playersTable, transactionsTable, gameRoundsTable, jackpotBatchesTable, jackpotPointsTable } from "@workspace/db/schema";
+import { eq, sql, and, desc } from "drizzle-orm";
+import { appSettings, type RoomId } from "./settings";
+import { bot } from "./bot";
+
+
+export type Phase = "waiting" | "playing" | "finished";
+
+export interface PlayerState {
+  socketId: string;
+  telegramId: number;
+  firstName: string;
+  cardIds: number[];
+}
+
+export interface Winner {
+  telegramId: number;
+  firstName: string;
+  cardId: number;
+  card: number[][];
+  winPattern: number[];
+}
+
+export interface BroadcastState {
+  roundId: string;
+  phase: Phase;
+  countdown: number;
+  playerCount: number;
+  playersWithCards: number;
+  prizePool: number;
+  netPrizePool: number;
+  calledBalls: number[];
+  currentBall: number | null;
+}
+
+export interface RoomConfig {
+  namespace?: string;
+  roomId?: string;
+  stakePerCard?: number;
+  commissionPercent?: number;
+  countdownSeconds?: number;
+  ballIntervalSeconds?: number;
+  maxCardsPerPlayer?: number;
+}
+
+const COLUMNS = ["B", "I", "N", "G", "O"] as const;
+const COL_RANGES: [number, number][] = [[1,15],[16,30],[31,45],[46,60],[61,75]];
+
+export function getColForNumber(n: number): string {
+  for (let i = 0; i < COL_RANGES.length; i++) {
+    const [min, max] = COL_RANGES[i]!;
+    if (n >= min && n <= max) return COLUMNS[i]!;
+  }
+  return "B";
+}
+
+export function getWinPattern(card: number[][], calledSet: Set<number>): number[] {
+  const isMarked = (r: number, c: number) => card[r]![c] === 0 || calledSet.has(card[r]![c]!);
+  const vals = (coords: [number, number][]) => coords.map(([r, c]) => card[r]![c]!);
+
+  for (let r = 0; r < 5; r++) {
+    const coords: [number, number][] = [0,1,2,3,4].map(c => [r, c]);
+    if (coords.every(([r2, c2]) => isMarked(r2, c2))) return vals(coords);
+  }
+  for (let c = 0; c < 5; c++) {
+    const coords: [number, number][] = [0,1,2,3,4].map(r => [r, c]);
+    if (coords.every(([r2, c2]) => isMarked(r2, c2))) return vals(coords);
+  }
+  {
+    const coords: [number, number][] = [0,1,2,3,4].map(i => [i, i]);
+    if (coords.every(([r2, c2]) => isMarked(r2, c2))) return vals(coords);
+  }
+  {
+    const coords: [number, number][] = [0,1,2,3,4].map(i => [i, 4 - i]);
+    if (coords.every(([r2, c2]) => isMarked(r2, c2))) return vals(coords);
+  }
+  {
+    const corners: [number, number][] = [[0,0],[0,4],[4,0],[4,4]];
+    if (corners.every(([r2, c2]) => isMarked(r2, c2))) return vals(corners);
+  }
+  return [];
+}
+
+export function checkWin(card: number[][], calledSet: Set<number>): boolean {
+  return getWinPattern(card, calledSet).length > 0;
+}
+
+export class GameEngine {
+  private io: Server;
+  private ns: Server | Namespace;
+  private roomCfg: RoomConfig;
+
+  private roundId: string;
+  private phase: Phase;
+  private countdown: number;
+  private players: Map<string, PlayerState>;
+  private persistentCards: Map<number, { firstName: string; cardIds: number[] }>;
+  private roundParticipants: Map<number, { firstName: string; cardIds: number[] }>;
+  private calledBalls: number[];
+  private availableBalls: number[];
+  private currentBall: number | null;
+  private winners: Winner[];
+  private claimedThisRound: Set<number>;
+
+  private countdownTimer: ReturnType<typeof setInterval> | null = null;
+  private ballTimer: ReturnType<typeof setInterval> | null = null;
+  private finishedTimer: ReturnType<typeof setTimeout> | null = null;
+
+  constructor(io: Server, config: RoomConfig = {}) {
+    this.io = io;
+    this.roomCfg = config;
+    const ns = config.namespace ?? "/";
+    // Always use io.of(ns) — never use io directly — so Room 1 and Room 2
+    // are completely isolated and events never bleed across namespaces.
+    this.ns = io.of(ns);
+
+    this.roundId = randomUUID();
+    this.phase = "waiting";
+    this.countdown = this.cfgCountdownSeconds();
+    this.players = new Map();
+    this.persistentCards = new Map();
+    this.roundParticipants = new Map();
+    this.calledBalls = [];
+    this.availableBalls = this.makeAvailableBalls();
+    this.currentBall = null;
+    this.winners = [];
+    this.claimedThisRound = new Set();
+    this.startCountdown();
+    logger.info({ roundId: this.roundId, namespace: ns ?? "/" }, "Game engine started");
+  }
+
+  // ── Config-aware setting getters ─────────────────────────────────────────────
+
+  private cfgStakePerCard(): number {
+    if (this.roomCfg.roomId) return appSettings.getRoomNum(this.roomCfg.roomId as RoomId, "stakePerCard");
+    return this.roomCfg.stakePerCard ?? appSettings.getNum("stakePerCard");
+  }
+
+  /** Returns the authoritative cartela list for this room */
+  private cfgCartelas(): number[][][] {
+    return CARTELAS;
+  }
+
+  private cfgCommissionPercent(): number {
+    if (this.roomCfg.roomId) return appSettings.getRoomNum(this.roomCfg.roomId as RoomId, "commissionPercent");
+    return this.roomCfg.commissionPercent ?? appSettings.getNum("commissionPercent");
+  }
+
+  private cfgCountdownSeconds(): number {
+    if (this.roomCfg.roomId) return appSettings.getRoomNum(this.roomCfg.roomId as RoomId, "countdownSeconds");
+    return this.roomCfg.countdownSeconds ?? appSettings.getNum("countdownSeconds");
+  }
+
+  private cfgBallIntervalMs(): number {
+    if (this.roomCfg.roomId) return appSettings.getRoomNum(this.roomCfg.roomId as RoomId, "ballIntervalSeconds") * 1000;
+    return (this.roomCfg.ballIntervalSeconds ?? appSettings.getNum("ballIntervalSeconds")) * 1000;
+  }
+
+  private cfgMaxCards(): number {
+    return 6;
+  }
+
+  private cfgMinPlayersToStart(): number {
+    if (this.roomCfg.roomId) return appSettings.getRoomNum(this.roomCfg.roomId as RoomId, "minPlayersToStart");
+    return 2;
+  }
+
+  getNamespace(): Server | Namespace {
+    return this.ns;
+  }
+
+  getPublicState() {
+    const totalCards = [...this.persistentCards.values()].reduce((sum, p) => sum + p.cardIds.length, 0);
+    return {
+      phase: this.phase,
+      playerCount: this.persistentCards.size,
+      cardCount: totalCards,
+      countdown: this.countdown,
+      stakePerCard: this.cfgStakePerCard(),
+    };
+  }
+
+  // ── Internal helpers ──────────────────────────────────────────────────────────
+
+  private makeAvailableBalls(): number[] {
+    // Step 1: Fisher-Yates with crypto.randomInt (OS-level entropy, no PRNG bias)
+    const balls = Array.from({ length: 75 }, (_, i) => i + 1);
+    for (let i = balls.length - 1; i > 0; i--) {
+      const j = randomInt(0, i + 1);
+      [balls[i], balls[j]] = [balls[j]!, balls[i]!];
+    }
+
+    // Step 2: Desequentialization — balls are called via pop() so we check
+    // the tail end of the array. Swap any pair within 8 of each other in value
+    // with a random element from the first half, repeat 4 passes.
+    for (let pass = 0; pass < 4; pass++) {
+      for (let i = balls.length - 1; i > 0; i--) {
+        if (Math.abs(balls[i]! - balls[i - 1]!) <= 8) {
+          const swapIdx = randomInt(0, Math.max(1, Math.floor(balls.length / 2)));
+          [balls[i], balls[swapIdx]] = [balls[swapIdx]!, balls[i]!];
+        }
+      }
+    }
+
+    return balls;
+  }
+
+  private startCountdown() {
+    this.clearAllTimers();
+    this.phase = "waiting";
+    this.countdown = this.cfgCountdownSeconds();
+    this.broadcastState();
+
+    this.countdownTimer = setInterval(() => {
+      this.countdown -= 1;
+      this.broadcastState();
+
+      if (this.countdown <= 0) {
+        const uniquePlayersWithCards = this.persistentCards.size;
+        const totalCardsSelected = [...this.persistentCards.values()].reduce((sum, p) => sum + p.cardIds.length, 0);
+        const minPlayers = this.cfgMinPlayersToStart();
+        if (totalCardsSelected >= 2) {
+          void this.startGame();
+        } else {
+          this.countdown = this.cfgCountdownSeconds();
+          logger.info({ roundId: this.roundId, uniquePlayersWithCards, totalCardsSelected, minPlayers }, "Not enough cards — resetting countdown (need at least 2)");
+        }
+      }
+    }, 1000);
+  }
+
+  private async startGame() {
+    this.clearAllTimers();
+    this.phase = "playing";
+    this.calledBalls = [];
+    this.availableBalls = this.makeAvailableBalls();
+    this.currentBall = null;
+    this.winners = [];
+    this.claimedThisRound = new Set();
+
+    this.roundParticipants.clear();
+    const stakePerCard = this.cfgStakePerCard();
+    for (const [telegramId, { firstName, cardIds }] of this.persistentCards) {
+      if (cardIds.length > 0) {
+        this.roundParticipants.set(telegramId, { firstName, cardIds: [...cardIds] });
+      }
+    }
+
+    this.broadcastState();
+    logger.info({ roundId: this.roundId, participants: this.roundParticipants.size }, "Game started");
+
+    for (const [telegramId, participant] of this.roundParticipants) {
+      const stake = participant.cardIds.length * stakePerCard;
+      try {
+        const rows = await db.update(playersTable)
+          .set({
+            balance: sql`${playersTable.balance} - ${stake}`,
+            playBalance: sql`GREATEST(${playersTable.playBalance} - ${stake}, 0)`,
+          })
+          .where(eq(playersTable.telegramId, telegramId))
+          .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
+
+        await db.insert(transactionsTable).values({
+          telegramId,
+          type: "stake",
+          amount: `${stake}`,
+          status: "approved",
+          note: `Stake for round ${this.roundId.slice(0, 8).toUpperCase()}`,
+        });
+
+        const connectedPlayer = this.findConnectedPlayer(telegramId);
+        if (connectedPlayer && rows[0]) {
+          this.ns.to(connectedPlayer.socketId).emit("balance_update", {
+            balance: rows[0].balance,
+            playBalance: rows[0].playBalance,
+          });
+        }
+      } catch (err) {
+        logger.error({ err, telegramId }, "Failed to deduct stake");
+      }
+    }
+
+    this.ballTimer = setInterval(() => {
+      this.callNextBall();
+    }, this.cfgBallIntervalMs());
+  }
+
+  private callNextBall() {
+    if (this.availableBalls.length === 0) {
+      logger.info({ roundId: this.roundId }, "All balls called — resetting round");
+      void this.saveRoundResultsAndReset();
+      return;
+    }
+
+    const ball = this.availableBalls.pop()!;
+    this.currentBall = ball;
+    this.calledBalls.push(ball);
+
+    this.ns.emit("ball_called", {
+      ball,
+      col: getColForNumber(ball),
+      calledBalls: [...this.calledBalls],
+    });
+
+    this.broadcastState();
+  }
+
+  handleClaimBingo(socket: Socket, data: { roundId: string; cardId: number; card?: number[][] }) {
+    if (this.phase !== "playing") return;
+    if (data.roundId !== this.roundId) return;
+
+    const player = this.players.get(socket.id);
+    if (!player) return;
+    if (!player.cardIds.includes(data.cardId)) return;
+    // Track claims by telegramId so that each player can win at most once per
+    // round, but two different players who legitimately hold the same card
+    // (e.g. due to a race-condition during selection) are not unfairly blocked.
+    if (this.claimedThisRound.has(player.telegramId)) return;
+
+    // Always use the server's own authoritative card data — never trust the client-supplied card.
+    const serverCard = this.cfgCartelas()[data.cardId - 1];
+    if (!serverCard) {
+      logger.warn({ cardId: data.cardId }, "claim_bingo: cardId not found in server cartelas");
+      return;
+    }
+
+    const calledSet = new Set(this.calledBalls);
+    if (!checkWin(serverCard, calledSet)) return;
+
+    this.claimedThisRound.add(player.telegramId);
+
+    const winner: Winner = {
+      telegramId: player.telegramId,
+      firstName: player.firstName,
+      cardId: data.cardId,
+      card: serverCard,
+      winPattern: getWinPattern(serverCard, calledSet),
+    };
+
+    this.winners.push(winner);
+    logger.info({ roundId: this.roundId, telegramId: player.telegramId, cardId: data.cardId }, "Winner!");
+
+    this.clearAllTimers();
+    this.phase = "finished";
+
+    const stakePerCardW = this.cfgStakePerCard();
+    const totalPoolW = [...this.roundParticipants.values()].reduce((sum, p) => sum + p.cardIds.length * stakePerCardW, 0);
+    const jackpotCutW = Math.floor(totalPoolW * 0.20);
+    const netPoolW = totalPoolW - jackpotCutW;
+    const prizePerWinner = this.winners.length > 0 ? Math.floor(netPoolW / this.winners.length) : 0;
+
+    this.ns.emit("winner_declared", {
+      roundId: this.roundId,
+      winners: this.winners,
+      prizePerWinner,
+    });
+
+    this.broadcastState();
+
+    this.finishedTimer = setTimeout(() => {
+      void this.saveRoundResultsAndReset();
+    }, 5000);
+  }
+
+  private async saveRoundResultsAndReset() {
+    const roundId = this.roundId;
+    const winners = this.winners;
+    const winnerTelegramIds = new Set(winners.map(w => w.telegramId));
+    const stakePerCard = this.cfgStakePerCard();
+
+    const totalPrizePool = [...this.roundParticipants.values()]
+      .reduce((sum, p) => sum + p.cardIds.length * stakePerCard, 0);
+    const jackpotContribution = Math.floor(totalPrizePool * 0.20);
+    const netPrizePool = totalPrizePool - jackpotContribution;
+    const prizePerWinner = winnerTelegramIds.size > 0
+      ? Math.floor(netPrizePool / winnerTelegramIds.size)
+      : 0;
+
+    for (const [telegramId, participant] of this.roundParticipants) {
+      const isWinner = winnerTelegramIds.has(telegramId);
+      const prize = isWinner ? prizePerWinner : 0;
+      const stake = participant.cardIds.length * stakePerCard;
+
+      try {
+        await db.insert(gameRoundsTable).values({
+          roundId,
+          roomId: this.roomCfg.roomId ?? "room1",
+          telegramId,
+          cardIds: JSON.stringify(participant.cardIds),
+          stake: `${stake}`,
+          result: isWinner ? "won" : "lost",
+          prize: `${prize}`,
+          winnersCount: winnerTelegramIds.size,
+        });
+
+        if (isWinner && prize > 0) {
+          const winRows = await db.update(playersTable)
+            .set({ balance: sql`${playersTable.balance} + ${prize}` })
+            .where(eq(playersTable.telegramId, telegramId))
+            .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
+
+          await db.insert(transactionsTable).values({
+            telegramId,
+            type: "win",
+            amount: `${prize}`,
+            status: "approved",
+            note: `Win prize for round ${roundId.slice(0, 8).toUpperCase()}`,
+          });
+
+          const connectedPlayer = this.findConnectedPlayer(telegramId);
+          if (connectedPlayer && winRows[0]) {
+            this.ns.to(connectedPlayer.socketId).emit("balance_update", {
+              balance: winRows[0].balance,
+              playBalance: winRows[0].playBalance,
+            });
+          }
+        }
+      } catch (err) {
+        logger.error({ err, telegramId }, "Failed to save round result");
+      }
+    }
+
+    // ── Jackpot: award points + fund pool + leaderboard/distribution ──────────
+    await this.handleJackpotLogic(this.roundParticipants, winnerTelegramIds, jackpotContribution);
+
+    this.resetRound();
+  }
+
+  // ── Jackpot system ────────────────────────────────────────────────────────────
+
+  /**
+   * Called at the end of every game. Awards points, funds the jackpot pool,
+   * posts leaderboard after games 1–9, and distributes + resets after game 10.
+   */
+  private async handleJackpotLogic(
+    roundParticipants: Map<number, { firstName: string; cardIds: number[] }>,
+    winnerTelegramIds: Set<number>,
+    jackpotContribution: number,
+  ): Promise<void> {
+    try {
+
+      // 1. Get or create the active batch
+      const existingRows = await db
+        .select()
+        .from(jackpotBatchesTable)
+        .where(eq(jackpotBatchesTable.isActive, true))
+        .orderBy(desc(jackpotBatchesTable.id))
+        .limit(1);
+
+      let batchId: number;
+      let batchNumber: number;
+      let gameCount: number;
+      let currentPool: number;
+
+      if (!existingRows.length) {
+        const [newBatch] = await db
+          .insert(jackpotBatchesTable)
+          .values({ batchNumber: 1, gameCount: 1, jackpotPool: `${jackpotContribution}`, isActive: true })
+          .returning();
+        batchId = newBatch!.id;
+        batchNumber = 1;
+        gameCount = 1;
+        currentPool = jackpotContribution;
+      } else {
+        const batch = existingRows[0]!;
+        const newGameCount = batch.gameCount + 1;
+        const newPool = Number(batch.jackpotPool) + jackpotContribution;
+        const [updated] = await db
+          .update(jackpotBatchesTable)
+          .set({ gameCount: newGameCount, jackpotPool: `${newPool}` })
+          .where(eq(jackpotBatchesTable.id, batch.id))
+          .returning();
+        batchId = batch.id;
+        batchNumber = batch.batchNumber;
+        gameCount = newGameCount;
+        currentPool = Number(updated!.jackpotPool);
+      }
+
+      // 2. Award points to all participants
+      for (const [telegramId, participant] of roundParticipants) {
+        const isWinner = winnerTelegramIds.has(telegramId);
+        const pointsToAdd = isWinner ? 10 : 5; // +5 participation, +5 win bonus
+
+        const existing = await db
+          .select()
+          .from(jackpotPointsTable)
+          .where(
+            and(
+              eq(jackpotPointsTable.batchId, batchId),
+              eq(jackpotPointsTable.telegramId, telegramId),
+            ),
+          )
+          .limit(1);
+
+        if (existing.length > 0) {
+          await db
+            .update(jackpotPointsTable)
+            .set({ points: existing[0]!.points + pointsToAdd, updatedAt: new Date() })
+            .where(
+              and(
+                eq(jackpotPointsTable.batchId, batchId),
+                eq(jackpotPointsTable.telegramId, telegramId),
+              ),
+            );
+        } else {
+          await db.insert(jackpotPointsTable).values({
+            batchId,
+            batchNumber,
+            telegramId,
+            firstName: participant.firstName,
+            points: pointsToAdd,
+          });
+        }
+      }
+
+      // 3. Post leaderboard (games 1–9) or distribute jackpot (game 10)
+      if (gameCount < 10) {
+        await this.postLeaderboardToChannel(batchId, batchNumber, gameCount, currentPool);
+      } else {
+        await this.distributeJackpot(batchId, batchNumber, currentPool);
+      }
+    } catch (err) {
+      logger.error({ err }, "handleJackpotLogic error");
+    }
+  }
+
+  /** Post a top-10 leaderboard update to the announcement channel */
+  private async postLeaderboardToChannel(
+    batchId: number,
+    batchNumber: number,
+    gameCount: number,
+    currentPool: number,
+  ): Promise<void> {
+    const channelId = process.env["ANNOUNCEMENT_CHANNEL_ID"] ?? "";
+    if (!channelId) return;
+
+    try {
+      const rows = await db
+        .select()
+        .from(jackpotPointsTable)
+        .where(eq(jackpotPointsTable.batchId, batchId))
+        .orderBy(desc(jackpotPointsTable.points))
+        .limit(10);
+
+      if (!rows.length) return;
+
+      const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
+      const lines = rows.map((r, i) => `${medals[i] ?? "•"} ${r.firstName} — ${r.points} ነጥብ`);
+
+      const message =
+        `🏆 *ጃክፖት ሊደርቦርድ — ዙር ${gameCount}/10*\n` +
+        `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        lines.join("\n") +
+        `\n━━━━━━━━━━━━━━━━━━━━━━\n` +
+        `💰 ጃክፖት ቦርሳ: *${currentPool.toFixed(2)} ETB*\n` +
+        `📊 ቀጣይ ዙር: ${gameCount + 1}/10`;
+
+      await bot.api.sendMessage(channelId, message, { parse_mode: "Markdown" });
+      logger.info({ gameCount, batchNumber }, "Posted jackpot leaderboard to channel");
+    } catch (err) {
+      logger.error({ err, channelId }, "Failed to post leaderboard to channel");
+    }
+  }
+
+  /** Distribute jackpot pool to top 3, reset batch, announce in channel */
+  private async distributeJackpot(
+    batchId: number,
+    batchNumber: number,
+    currentPool: number,
+  ): Promise<void> {
+    try {
+      // Fetch top 3 by points
+      const top3 = await db
+        .select()
+        .from(jackpotPointsTable)
+        .where(eq(jackpotPointsTable.batchId, batchId))
+        .orderBy(desc(jackpotPointsTable.points))
+        .limit(3);
+
+      const splits = [0.5, 0.3, 0.2]; // 50% / 30% / 20%
+      const prizes: Array<{ telegramId: number; firstName: string; points: number; prize: number }> = [];
+
+      for (let i = 0; i < top3.length; i++) {
+        const player = top3[i]!;
+        const prize = Math.floor(currentPool * splits[i]!);
+        prizes.push({ telegramId: player.telegramId, firstName: player.firstName, points: player.points, prize });
+
+        if (prize > 0) {
+          try {
+            await db
+              .update(playersTable)
+              .set({ balance: sql`${playersTable.balance} + ${prize}` })
+              .where(eq(playersTable.telegramId, player.telegramId));
+
+            await db.insert(transactionsTable).values({
+              telegramId: player.telegramId,
+              type: "win",
+              amount: `${prize}`,
+              status: "approved",
+              note: `Jackpot batch #${batchNumber} — ${i + 1}${i === 0 ? "st" : i === 1 ? "nd" : "rd"} place`,
+            });
+          } catch (err) {
+            logger.error({ err, telegramId: player.telegramId }, "Failed to credit jackpot prize");
+          }
+        }
+      }
+
+      // Mark batch as completed
+      await db
+        .update(jackpotBatchesTable)
+        .set({ isActive: false, completedAt: new Date() })
+        .where(eq(jackpotBatchesTable.id, batchId));
+
+      // Create the next batch
+      await db.insert(jackpotBatchesTable).values({
+        batchNumber: batchNumber + 1,
+        gameCount: 0,
+        jackpotPool: "0.00",
+        isActive: true,
+      });
+
+      logger.info({ batchNumber, currentPool, winners: prizes.length }, "Jackpot distributed, new batch started");
+
+      // Announce in channel
+      const channelId = process.env["ANNOUNCEMENT_CHANNEL_ID"] ?? "";
+      if (channelId) {
+        const winnerMedals = ["🥇", "🥈", "🥉"];
+        const winLines = prizes.map(
+          (p, i) =>
+            `${winnerMedals[i]} *${p.firstName}* — ${p.points} pts → *${p.prize.toFixed(2)} ETB*`,
+        );
+
+        const msg =
+          `🔥 ጃክፖቱ ተበላ!\n\n` +
+          `በዙር #${batchNumber} *${currentPool.toFixed(2)} ብር* ለታደሉት ተጫዋቾቻችን ተከፍሏል!\n\n` +
+          `👇 ዕድለኞቹ:\n` +
+          winLines.join("\n") +
+          `\n\n⚡ ቀጣዩ ዙር አሁን ተጀምሯል! ቀድመው በመግባት ማሸነፍ ይጀምሩ! 💸`;
+
+        try {
+          await bot.api.sendMessage(channelId, msg, { parse_mode: "Markdown" });
+        } catch (err) {
+          logger.error({ err }, "Failed to send jackpot distribution announcement");
+        }
+      }
+    } catch (err) {
+      logger.error({ err }, "distributeJackpot error");
+    }
+  }
+
+  private resetRound() {
+    this.clearAllTimers();
+    this.roundId = randomUUID();
+    this.winners = [];
+    this.claimedThisRound = new Set();
+    this.calledBalls = [];
+    this.currentBall = null;
+    this.availableBalls = this.makeAvailableBalls();
+
+    this.persistentCards.clear();
+    this.roundParticipants.clear();
+
+    for (const player of this.players.values()) {
+      player.cardIds = [];
+    }
+
+    this.ns.emit("round_reset", { roundId: this.roundId });
+    logger.info({ roundId: this.roundId }, "Round reset");
+    this.startCountdown();
+  }
+
+  private clearAllTimers() {
+    if (this.countdownTimer) { clearInterval(this.countdownTimer); this.countdownTimer = null; }
+    if (this.ballTimer) { clearInterval(this.ballTimer); this.ballTimer = null; }
+    if (this.finishedTimer) { clearTimeout(this.finishedTimer); this.finishedTimer = null; }
+  }
+
+  private broadcastState() {
+    const stakePerCard = this.cfgStakePerCard();
+    const commissionPct = this.cfgCommissionPercent();
+    let playersWithCards: number;
+    let prizePool: number;
+
+    if (this.phase === "playing" || this.phase === "finished") {
+      const participants = [...this.roundParticipants.values()];
+      playersWithCards = participants.reduce((sum, p) => sum + p.cardIds.length, 0);
+      prizePool = participants.reduce((sum, p) => sum + p.cardIds.length * stakePerCard, 0);
+    } else {
+      const persistent = [...this.persistentCards.values()];
+      playersWithCards = persistent.reduce((sum, p) => sum + p.cardIds.length, 0);
+      prizePool = persistent.reduce((sum, p) => sum + p.cardIds.length * stakePerCard, 0);
+    }
+
+    const commissionAmount = Math.floor(prizePool * commissionPct / 100);
+    const netPrizePool = prizePool - commissionAmount;
+
+    const state: BroadcastState = {
+      roundId: this.roundId,
+      phase: this.phase,
+      countdown: this.countdown,
+      playerCount: this.players.size,
+      playersWithCards,
+      prizePool,
+      netPrizePool,
+      calledBalls: [...this.calledBalls],
+      currentBall: this.currentBall,
+    };
+    this.ns.emit("game_state", state);
+  }
+
+  private findConnectedPlayer(telegramId: number): PlayerState | undefined {
+    for (const p of this.players.values()) {
+      if (p.telegramId === telegramId) return p;
+    }
+    return undefined;
+  }
+
+  async handleJoin(socket: Socket, data: { telegramId: number; firstName: string }) {
+    const { telegramId, firstName } = data;
+
+    if (this.players.has(socket.id)) return;
+
+    for (const [sid, p] of this.players) {
+      if (p.telegramId === telegramId && sid !== socket.id) {
+        this.players.delete(sid);
+        logger.info({ telegramId, oldSocketId: sid }, "Removed stale socket on reconnect");
+      }
+    }
+
+    const isReturningPlayer = this.persistentCards.has(telegramId) || this.roundParticipants.has(telegramId);
+    if (this.phase === "waiting" && !isReturningPlayer) {
+      try {
+        const stakePerCard = this.cfgStakePerCard();
+        const rows = await db.select({ balance: playersTable.balance })
+          .from(playersTable).where(eq(playersTable.telegramId, telegramId)).limit(1);
+        const balance = rows[0] ? Number(rows[0].balance) : 0;
+        if (balance < stakePerCard) {
+          const msg = `ጨዋታ ለመቀላቀል ቢያንስ ${stakePerCard} ብር ያስፈልጋል። አሁን ያለዎ ባላንስ: ${balance.toFixed(2)} ብር`;
+          socket.emit("join_error", { message: msg });
+          logger.info({ telegramId, balance, stakePerCard, namespace: this.roomCfg.namespace ?? "/" }, "join_error: insufficient balance");
+          return;
+        }
+      } catch (err) {
+        logger.error({ err, telegramId }, "Failed to check balance for bingo join");
+      }
+    }
+
+    let cardIds: number[] = [];
+    if (this.phase === "waiting" && this.persistentCards.has(telegramId)) {
+      cardIds = [...this.persistentCards.get(telegramId)!.cardIds];
+      logger.info({ telegramId, cardIds }, "Restored card selection on reconnect (waiting)");
+    } else if ((this.phase === "playing" || this.phase === "finished") && this.roundParticipants.has(telegramId)) {
+      cardIds = [...this.roundParticipants.get(telegramId)!.cardIds];
+      logger.info({ telegramId, cardIds }, "Restored participation on reconnect (playing/finished)");
+    }
+
+    this.players.set(socket.id, { socketId: socket.id, telegramId, firstName, cardIds });
+
+    const stakePerCard = this.cfgStakePerCard();
+    const commissionPct = this.cfgCommissionPercent();
+    let playersWithCardsCount: number;
+    let prizePool: number;
+    if (this.phase === "playing" || this.phase === "finished") {
+      const participants = [...this.roundParticipants.values()];
+      playersWithCardsCount = participants.reduce((sum, p) => sum + p.cardIds.length, 0);
+      prizePool = participants.reduce((sum, p) => sum + p.cardIds.length * stakePerCard, 0);
+    } else {
+      const persistent = [...this.persistentCards.values()];
+      playersWithCardsCount = persistent.reduce((sum, p) => sum + p.cardIds.length, 0);
+      prizePool = persistent.reduce((sum, p) => sum + p.cardIds.length * stakePerCard, 0);
+    }
+    const commissionAmount = Math.floor(prizePool * commissionPct / 100);
+
+    socket.emit("game_state", {
+      roundId: this.roundId,
+      phase: this.phase,
+      countdown: this.countdown,
+      playerCount: this.players.size,
+      playersWithCards: playersWithCardsCount,
+      prizePool,
+      netPrizePool: prizePool - commissionAmount,
+      calledBalls: [...this.calledBalls],
+      currentBall: this.currentBall,
+    });
+
+    if (cardIds.length > 0) {
+      socket.emit("my_cards", { cardIds });
+    }
+
+    if (this.phase === "playing") {
+      socket.emit("ball_called", {
+        ball: this.currentBall,
+        col: this.currentBall ? getColForNumber(this.currentBall) : null,
+        calledBalls: [...this.calledBalls],
+      });
+    }
+
+    if (this.phase === "finished" && this.winners.length > 0) {
+      const totalPoolJ = [...this.roundParticipants.values()].reduce((sum, p) => sum + p.cardIds.length * stakePerCard, 0);
+      const netPoolJ = totalPoolJ - Math.floor(totalPoolJ * commissionPct / 100);
+      const prizePerWinnerJ = this.winners.length > 0 ? Math.floor(netPoolJ / this.winners.length) : 0;
+      socket.emit("winner_declared", { roundId: this.roundId, winners: this.winners, prizePerWinner: prizePerWinnerJ });
+    }
+
+    this.ns.emit("player_count", { count: this.players.size });
+
+    if (this.phase === "waiting") {
+      socket.emit("cards_taken", { cardIds: this.getAllTakenCardIds() });
+    }
+
+    logger.info({ socketId: socket.id, telegramId, restoredCards: cardIds.length }, "Player joined");
+  }
+
+  private getAllTakenCardIds(): number[] {
+    const taken: number[] = [];
+    for (const { cardIds } of this.persistentCards.values()) {
+      for (const id of cardIds) {
+        taken.push(id);
+      }
+    }
+    return taken;
+  }
+
+  private broadcastTakenCards() {
+    this.ns.emit("cards_taken", { cardIds: this.getAllTakenCardIds() });
+  }
+
+  async handleSelectCard(socket: Socket, cardId: number) {
+    if (this.phase !== "waiting") return;
+    const player = this.players.get(socket.id);
+    if (!player) return;
+    const maxCards = this.cfgMaxCards();
+    if (player.cardIds.length >= maxCards) return;
+    if (player.cardIds.includes(cardId)) return;
+    // Prevent two players from selecting the same card (race-condition guard).
+    if (this.getAllTakenCardIds().includes(cardId)) return;
+
+    const stakePerCard = this.cfgStakePerCard();
+    const neededStake = (player.cardIds.length + 1) * stakePerCard;
+    try {
+      const rows = await db
+        .select({ balance: playersTable.balance })
+        .from(playersTable)
+        .where(eq(playersTable.telegramId, player.telegramId))
+        .limit(1);
+
+      const balance = rows[0] ? Number(rows[0].balance) : 0;
+      if (balance < neededStake) {
+        socket.emit("select_card_error", {
+          message: `ካርድ ለመምረጥ ቢያንስ ${neededStake} ብር ያስፈልጋል። የአሁን ባላንስ: ${balance.toFixed(2)} ብር`,
+          balance: balance.toFixed(2),
+        });
+        return;
+      }
+    } catch (err) {
+      logger.error({ err, telegramId: player.telegramId }, "Failed to check balance for card selection");
+      socket.emit("select_card_error", { message: "ስህተት ተፈጥሯል። እንደገና ይሞክሩ።", balance: "0" });
+      return;
+    }
+
+    // Re-check atomically after the async boundary. Two concurrent requests can
+    // both pass the pre-await checks above (Node.js is single-threaded but yields
+    // at every `await`). Re-checking here — before any state mutation — is
+    // atomic: nothing else can run between this point and the push below.
+    if (player.cardIds.includes(cardId)) return;
+    if (this.getAllTakenCardIds().includes(cardId)) return;
+
+    player.cardIds.push(cardId);
+    this.persistentCards.set(player.telegramId, { firstName: player.firstName, cardIds: [...player.cardIds] });
+    socket.emit("my_cards", { cardIds: player.cardIds });
+    this.broadcastTakenCards();
+  }
+
+  handleDeselectCard(socket: Socket, cardId: number) {
+    const player = this.players.get(socket.id);
+    if (!player) return;
+    player.cardIds = player.cardIds.filter(id => id !== cardId);
+    this.persistentCards.set(player.telegramId, { firstName: player.firstName, cardIds: [...player.cardIds] });
+    socket.emit("my_cards", { cardIds: player.cardIds });
+    this.broadcastTakenCards();
+  }
+
+  handleDisconnect(socketId: string) {
+    const player = this.players.get(socketId);
+    this.players.delete(socketId);
+    this.ns.emit("player_count", { count: this.players.size });
+    if (player) {
+      logger.info({ socketId, telegramId: player.telegramId }, "Player disconnected (state preserved for reconnect)");
+    }
+  }
+
+  getState(): BroadcastState {
+    return {
+      roundId: this.roundId,
+      phase: this.phase,
+      countdown: this.countdown,
+      playerCount: this.players.size,
+      playersWithCards: this.computePlayersWithCards(),
+      prizePool: this.computePrizePool(),
+      netPrizePool: this.computeNetPrizePool(),
+      calledBalls: [...this.calledBalls],
+      currentBall: this.currentBall,
+    };
+  }
+
+  getRoomStatus() {
+    const playersWithCards = this.computePlayersWithCards();
+    const totalCards = [...this.players.values()].reduce((s, p) => s + p.cardIds.length, 0);
+    const stakePerCard = this.cfgStakePerCard();
+    const commissionPct = this.cfgCommissionPercent();
+    const prizePool = totalCards * stakePerCard;
+    const netPrizePool = prizePool * (1 - commissionPct / 100);
+    return {
+      roomId: this.roomCfg.roomId ?? "room1",
+      namespace: ('name' in this.ns ? this.ns.name : '/') as string,
+      roundId: this.roundId,
+      phase: this.phase,
+      countdown: this.countdown,
+      playerCount: this.players.size,
+      playersWithCards,
+      totalCards,
+      calledBalls: this.calledBalls.length,
+      currentBall: this.currentBall,
+      stakePerCard,
+      commissionPercent: commissionPct,
+      prizePool,
+      netPrizePool,
+    };
+  }
+
+  private computePlayersWithCards(): number {
+    let count = 0;
+    for (const p of this.players.values()) {
+      if (p.cardIds.length > 0) count++;
+    }
+    return count;
+  }
+
+  private computePrizePool(): number {
+    const totalCards = [...this.players.values()].reduce((s, p) => s + p.cardIds.length, 0);
+    return totalCards * this.cfgStakePerCard();
+  }
+
+  private computeNetPrizePool(): number {
+    return this.computePrizePool() * (1 - this.cfgCommissionPercent() / 100);
+  }
+
+  async enterMaintenance(): Promise<{ refunded: number }> {
+    this.clearAllTimers();
+
+    let refunded = 0;
+
+    if (this.phase === "playing" || this.phase === "finished") {
+      const stakePerCard = this.cfgStakePerCard();
+      for (const [telegramId, participant] of this.roundParticipants) {
+        const refundAmount = participant.cardIds.length * stakePerCard;
+        if (refundAmount <= 0) continue;
+        try {
+          const updated = await db.update(playersTable)
+            .set({
+              balance: sql`${playersTable.balance} + ${refundAmount}`,
+              playBalance: sql`${playersTable.playBalance} + ${refundAmount}`,
+            })
+            .where(eq(playersTable.telegramId, telegramId))
+            .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
+
+          await db.insert(transactionsTable).values({
+            telegramId,
+            type: "refund",
+            amount: `${refundAmount}`,
+            status: "approved",
+            note: `Maintenance mode — stake refunded (round ${this.roundId.slice(0, 8).toUpperCase()})`,
+          });
+
+          const connected = this.findConnectedPlayer(telegramId);
+          if (connected && updated[0]) {
+            this.ns.to(connected.socketId).emit("balance_update", {
+              balance: updated[0].balance,
+              playBalance: updated[0].playBalance,
+            });
+          }
+          refunded++;
+        } catch (err) {
+          logger.error({ err, telegramId }, "Failed to refund stake on maintenance");
+        }
+      }
+    }
+
+    this.phase = "waiting";
+    this.persistentCards.clear();
+    this.roundParticipants.clear();
+    for (const player of this.players.values()) {
+      player.cardIds = [];
+    }
+    this.calledBalls = [];
+    this.currentBall = null;
+    this.winners = [];
+    this.claimedThisRound = new Set();
+    this.roundId = randomUUID();
+
+    this.ns.emit("maintenance_mode", { enabled: true });
+    logger.info({ refunded }, "Maintenance mode entered");
+    return { refunded };
+  }
+
+  exitMaintenance() {
+    this.ns.emit("maintenance_mode", { enabled: false });
+    logger.info("Maintenance mode exited");
+    this.startCountdown();
+  }
+}
