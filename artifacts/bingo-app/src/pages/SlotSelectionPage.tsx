@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useLocation } from 'wouter'
+import { CARTELAS } from '../data/cartelas'
 
 // Numbers 1-500, some highlighted as drawn
 const HIGHLIGHTED = new Set([146, 147, 153, 158, 160, 168, 174, 180, 23, 45, 67, 89, 112, 134, 200, 215, 230, 250, 278, 310, 340, 360, 390, 420, 450, 480])
@@ -129,17 +130,53 @@ export default function SlotSelectionPage() {
 
         {/* Two cartela slot previews */}
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 10 }}>
-          {[0, 1].map(i => (
+          {[0, 1].map(i => {
+            const cardNum = selectedSlots[i]
+            const card = cardNum ? CARTELAS[cardNum - 1] : null
+            const COLS = ['B','I','N','G','O']
+            return (
             <div
               key={i}
               className="cartela-placeholder"
-              style={{ padding: '18px 10px', minHeight: 100 }}
+              style={{ padding: card ? '8px 6px' : '18px 10px', minHeight: 100 }}
               onClick={autoAssign}
             >
-              {selectedSlots[i] ? (
-                <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 26, fontWeight: 800, color: '#D4A017' }}>{selectedSlots[i]}</div>
-                  <div style={{ fontSize: 10, color: '#888' }}>SLOT #{i + 1} SELECTED</div>
+              {card ? (
+                <div style={{ width: '100%' }}>
+                  {/* Card number label */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                    <span style={{ fontSize: 9, fontWeight: 700, color: '#888', letterSpacing: '0.05em' }}>SLOT #{i+1}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, color: '#D4A017' }}>#{cardNum}</span>
+                  </div>
+                  {/* Column headers */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, marginBottom: 2 }}>
+                    {COLS.map(c => (
+                      <div key={c} style={{
+                        textAlign: 'center', fontSize: 9, fontWeight: 800,
+                        color: '#D4A017', letterSpacing: '0.04em', lineHeight: 1,
+                      }}>{c}</div>
+                    ))}
+                  </div>
+                  {/* 5x5 grid */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2 }}>
+                    {card.map((row, r) =>
+                      row.map((num, c) => (
+                        <div key={`${r}-${c}`} style={{
+                          aspectRatio: '1',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          borderRadius: 3,
+                          background: num === 0 ? 'linear-gradient(135deg,#c0392b,#ff6b00)' : '#1e0909',
+                          border: num === 0 ? 'none' : '1px solid #3a1212',
+                          fontSize: num === 0 ? 10 : 8,
+                          fontWeight: 700,
+                          color: num === 0 ? '#fff' : '#ccc',
+                          lineHeight: 1,
+                        }}>
+                          {num === 0 ? '★' : num}
+                        </div>
+                      ))
+                    )}
+                  </div>
                 </div>
               ) : (
                 <>
@@ -154,7 +191,8 @@ export default function SlotSelectionPage() {
                 </>
               )}
             </div>
-          ))}
+          )})}
+
         </div>
 
         {/* Buttons */}
