@@ -38,7 +38,7 @@ services:
       - key: SMS_WEBHOOK_SECRET
         sync: false
       - key: MINI_APP_URL
-        value: ngo-clonezip.onrender.com
+        value: melbetbingo.onrender.com
       - key: SESSION_SECRET
         sync: false
 
