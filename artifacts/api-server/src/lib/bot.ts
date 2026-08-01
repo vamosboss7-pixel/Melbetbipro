@@ -585,7 +585,7 @@ bot.command("promo", async (ctx) => {
     // No code given — start the session flow
     clearAllSessions(user.id);
     promoSessions.add(user.id);
-    await ctx.reply(`🎟 <b>ፕሮሞ ኮድ ያስገቡ:</b>\n\n<i>ኮዱን ጽፈው ይላኩ — ወይም /promo CODE ብለው ቀጥታ ያስጊቡ</i>`, { parse_mode: "HTML" });
+    await ctx.reply(`🎟 ፕሮሞ ኮድ ያስገቡ:\n\nኮዱን ጽፈው ይላኩ 👇`);
     return;
   }
   try {
@@ -604,7 +604,7 @@ bot.callbackQuery(/^cmd_promo_(\d+)$/, async (ctx) => {
   await ctx.answerCallbackQuery();
   clearAllSessions(userId);
   promoSessions.add(userId);
-  await ctx.reply(`🎟 <b>ፕሮሞ ኮድ ያስገቡ:</b>\n\n<i>ኮዱን ጽፈው ይላኩ — ወይም /promo CODE ብለው ቀጥታ ያስጊቡ</i>`, { parse_mode: "HTML" });
+  await ctx.reply(`🎟 ፕሮሞ ኮድ ያስገቡ:\n\nኮዱን ጽፈው ይላኩ 👇`);
 });
 
 // ── Support button ─────────────────────────────────────────────────────────────
