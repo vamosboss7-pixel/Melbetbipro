@@ -307,7 +307,7 @@ bot.command("start", async (ctx) => {
     ],
     [
       { text: "📣 Join Channel", url: joinChannelUrl },
-      { text: "📢 የቻናል ቦነስ (5 ብር)", callback_data: `cmd_channel_bonus_${user.id}` },
+      { text: "📢 Bonus Channel", callback_data: `cmd_channel_bonus_${user.id}` },
     ],
     // Admin button — only visible to the designated main admin
     ...(MAIN_ADMIN_TELEGRAM_ID > 0 && user.id === MAIN_ADMIN_TELEGRAM_ID
@@ -397,7 +397,7 @@ bot.command("start", async (ctx) => {
         ],
         [
           { text: "📣 Join Channel", url: "https://t.me/melkambingo" },
-          { text: "📢 የቻናል ቦነስ (5 ብር)", callback_data: `cmd_channel_bonus_${user.id}` },
+          { text: "📢 Bonus Channel", callback_data: `cmd_channel_bonus_${user.id}` },
         ],
       ];
       await ctx.reply(
