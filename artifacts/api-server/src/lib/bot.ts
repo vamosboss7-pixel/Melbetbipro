@@ -488,17 +488,11 @@ bot.callbackQuery(/^cmd_balance_(\d+)$/, async (ctx) => {
     const rows = await db.select().from(playersTable).where(eq(playersTable.telegramId, userId)).limit(1);
     if (!rows.length) { await ctx.reply("❌ አካዉንት አልተገኘም። /start ን ይጫኑ።"); return; }
     const balance = Number(rows[0]!.balance);
-    const playBalance = Number(rows[0]!.playBalance);
-    const withdrawable = Math.max(balance - playBalance, 0);
-    const isAgent = rows[0]!.role === "agent";
-    const agentBalance = Number(rows[0]!.agentBalance);
+    const firstName = rows[0]!.firstName ?? "—";
     await ctx.reply(
-      `💳 <b>ባላንስ ዝርዝር</b>\n\n` +
-      `🏦 ዋና ዋሌት (ጠቅላላ): <b>${balance.toFixed(2)} ብር</b>\n` +
-      `🎮 Play Wallet: <b>${playBalance.toFixed(2)} ብር</b>\n` +
-      `💸 ማውጣት የሚቻል: <b>${withdrawable.toFixed(2)} ብር</b>` +
-      (isAgent ? `\n\n💼 <b>Agent Wallet: ${agentBalance.toFixed(2)} ብር</b>` : "") +
-      `\n\n📌 ዲፖዚት/ቦነስ ዊዝድሮው አይቻልም።`,
+      `📊 <b>የርስዎ መረጃ</b> 📊\n\n` +
+      `👤 ስም፡ <b>${firstName}</b>\n` +
+      `💰 ቀሪ ሂሳብ፡ <b>${balance.toFixed(0)} ብር (ETB)</b>`,
       { parse_mode: "HTML" }
     );
   } catch (err) {
