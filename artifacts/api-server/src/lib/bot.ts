@@ -1934,13 +1934,11 @@ async function handleWithdrawRequest(
 
 export { grantInviteBonus };
 
-// ── Shared: grant depositor bonus (5 ETB flat + 20% of deposit) ───────────────
+// ── Shared: grant depositor bonus (20% of deposit) ────────────────────────────
 export async function grantDepositorBonus(telegramId: number, depositAmount: number): Promise<void> {
   try {
-    const FLAT_BONUS = 5;
     const PERCENT_BONUS = 0.20;
-    const percentAmount = Math.floor(depositAmount * PERCENT_BONUS * 100) / 100;
-    const totalBonus = FLAT_BONUS + percentAmount;
+    const totalBonus = Math.floor(depositAmount * PERCENT_BONUS * 100) / 100;
 
     await db.update(playersTable).set({
       playBalance: sql`${playersTable.playBalance} + ${totalBonus}`,
@@ -1951,7 +1949,7 @@ export async function grantDepositorBonus(telegramId: number, depositAmount: num
       type: "deposit_bonus",
       amount: `${totalBonus}`,
       status: "approved",
-      note: `ዲፖዚት ቦነስ — 5 ብር + 20% (${percentAmount.toFixed(2)} ብር) on ${depositAmount} ብር deposit`,
+      note: `ዲፖዚት ቦነስ — 20% (${totalBonus.toFixed(2)} ብር) on ${depositAmount} ብር deposit`,
     });
 
     try {
@@ -1959,8 +1957,7 @@ export async function grantDepositorBonus(telegramId: number, depositAmount: num
         telegramId,
         `🎁 <b>የዲፖዚት ቦነስ ደረሰዎ!</b>\n\n` +
         `💵 ዲፖዚት: <b>${depositAmount.toFixed(0)} ብር</b>\n` +
-        `➕ የቋሚ ቦነስ: <b>5 ብር</b>\n` +
-        `➕ 20% ቦነስ: <b>${percentAmount.toFixed(2)} ብር</b>\n` +
+        `➕ 20% ቦነስ: <b>${totalBonus.toFixed(2)} ብር</b>\n` +
         `━━━━━━━━━━━━━━\n` +
         `🏆 ጠቅላላ ቦነስ: <b>${totalBonus.toFixed(2)} ብር</b> Play Wallet ተጨምሯል!\n\n` +
         `🎱 አሁን ይጫወቱ!`,
