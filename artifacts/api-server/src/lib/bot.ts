@@ -513,8 +513,8 @@ bot.callbackQuery(/^cmd_invite_(\d+)$/, async (ctx) => {
   if (!botUsername) { await ctx.reply("❌ ሊንክ ማምጣት አልተቻለም።"); return; }
   const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
   const firstName = ctx.from.first_name ?? "ወዳጆ";
-  const shareText = `🎁 ${firstName} ወደ Melbet BINGO ጋበዙዎ እና ሸልማቶቹን ያጎኑ!\n\n${inviteLink}`;
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`🎁 ${firstName} ወደ Melbet BINGO ጋበዙዎ እና ሸልማቶቹን ያጎኑ!`)}`;
+  const shareText = `🎁 ${firstName} ወደ Melbet BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!\n\n${inviteLink}`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`🎁 ${firstName} ወደ Melbet BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!`)}`;
   await ctx.reply(shareText, {
     reply_markup: {
       inline_keyboard: [[{ text: "🔗 ሊንኩን ላክ (Share Link)", url: shareUrl }]],
@@ -767,8 +767,8 @@ bot.command("invite", async (ctx) => {
   }
   const inviteLink = `https://t.me/${botUsername}?start=ref_${user.id}`;
   const firstName = user.first_name ?? "ወዳጆ";
-  const shareText = `🎁 ${firstName} ወደ Melbet BINGO ጋበዙዎ እና ሸልማቶቹን ያጎኑ!\n\n${inviteLink}`;
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`🎁 ${firstName} ወደ Melbet BINGO ጋበዙዎ እና ሸልማቶቹን ያጎኑ!`)}`;
+  const shareText = `🎁 ${firstName} ወደ Melbet BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!\n\n${inviteLink}`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`🎁 ${firstName} ወደ Melbet BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!`)}`;
   await ctx.reply(shareText, {
     reply_markup: {
       inline_keyboard: [[{ text: "🔗 ሊንኩን ላክ (Share Link)", url: shareUrl }]],
