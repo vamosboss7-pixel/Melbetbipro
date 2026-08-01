@@ -94,7 +94,7 @@ export default function GamePage() {
               {connected ? '● LIVE' : '○ CONNECTING...'}
               &nbsp;·&nbsp;
               {gameState.phase === 'waiting'
-                ? `STARTS IN ${formatCountdown(gameState.countdown)}`
+                ? 'ጨዋታ ይጀምራል...'
                 : gameState.phase === 'playing'
                 ? `${gameState.calledBalls.length}/75 BALLS`
                 : 'ROUND OVER'}

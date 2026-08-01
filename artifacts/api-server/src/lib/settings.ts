@@ -42,7 +42,7 @@ export const SETTING_DEFAULTS: Record<SettingKey, string> = {
   minAgentWithdrawal: "150",
   commissionPercent: "0",
   stakePerCard: "0",
-  countdownSeconds: "50",
+  countdownSeconds: "2",
   ballIntervalSeconds: "3",
   autoReportHour: "-1",
   reportAdminIds: process.env["ADMIN_TELEGRAM_ID"] ?? "",
@@ -55,9 +55,9 @@ export const SETTING_DEFAULTS: Record<SettingKey, string> = {
   welcomeImageBase64: "",
   room1_stakePerCard: "0",
   room1_commissionPercent: "20",
-  room1_countdownSeconds: "50",
+  room1_countdownSeconds: "2",
   room1_ballIntervalSeconds: "3",
-  room1_minPlayersToStart: "2",
+  room1_minPlayersToStart: "1",
 };
 
 class AppSettings {
