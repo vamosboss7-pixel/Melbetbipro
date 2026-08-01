@@ -1,64 +1,117 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'wouter'
+import { io, type Socket } from 'socket.io-client'
 import { CARTELAS } from '../data/cartelas'
 import { usePlayer } from '../context/PlayerContext'
 
 // Numbers that are already taken — populated from server data at runtime
 const HIGHLIGHTED = new Set<number>([])
 
+interface GameState {
+  phase: 'waiting' | 'playing' | 'finished'
+  countdown: number
+  playersWithCards: number
+}
+
 export default function SlotSelectionPage() {
   const [, navigate] = useLocation()
   const [selectedSlots, setSelectedSlots] = useState<number[]>([])
-  const [timeLeft, setTimeLeft] = useState(31)
   const [jackpotPool, setJackpotPool] = useState<string>('0.00')
   const [stakePerCard, setStakePerCard] = useState<number>(0)
   const [showNoBalance, setShowNoBalance] = useState(false)
   const { player } = usePlayer()
 
-  // Fetch jackpot pool + stake on mount
+  // ── Server-side state ─────────────────────────────────────────────────────
+  const [serverCountdown, setServerCountdown] = useState<number>(30)
+  const [gamePhase, setGamePhase] = useState<GameState['phase']>('waiting')
+  const socketRef = useRef<Socket | null>(null)
+  const playerRef = useRef(player)
+  const selectedSlotsRef = useRef(selectedSlots)
+
+  useEffect(() => { playerRef.current = player }, [player])
+  useEffect(() => { selectedSlotsRef.current = selectedSlots }, [selectedSlots])
+
+  // Connect to socket and listen to server countdown/phase
+  useEffect(() => {
+    const socket = io({ path: '/api/socket.io', transports: ['websocket', 'polling'] })
+    socketRef.current = socket
+
+    const emitJoin = () => {
+      const p = playerRef.current
+      if (p) socket.emit('join_room', { telegramId: p.telegramId, firstName: p.firstName })
+    }
+
+    socket.on('connect', emitJoin)
+
+    socket.on('game_state', (state: GameState) => {
+      setServerCountdown(state.countdown)
+      setGamePhase(state.phase)
+    })
+
+    // When a round resets, clear local card selection too
+    socket.on('round_reset', () => {
+      setSelectedSlots([])
+      setGamePhase('waiting')
+    })
+
+    return () => { socket.disconnect(); socketRef.current = null }
+  }, [])
+
+  // If player loads after socket is already connected, emit join
+  useEffect(() => {
+    if (player && socketRef.current?.connected) {
+      socketRef.current.emit('join_room', { telegramId: player.telegramId, firstName: player.firstName })
+    }
+  }, [player])
+
+  // ── Navigate to game only when server starts the round AND player has cards ─
+  useEffect(() => {
+    if (gamePhase === 'playing') {
+      const cards = selectedSlotsRef.current
+      if (cards.length > 0) {
+        sessionStorage.setItem('selectedSlots', JSON.stringify(cards))
+        navigate('/game')
+      }
+      // No cards selected → stay on /slots, wait for round_reset → next round
+    }
+  }, [gamePhase, navigate])
+
+  // ── Fetch jackpot + stake ─────────────────────────────────────────────────
   useEffect(() => {
     fetch('/api/jackpot/status')
       .then(r => r.json())
-      .then((data: { pool: number }) => {
-        setJackpotPool(Number(data.pool ?? 0).toFixed(2))
-      })
-      .catch(() => {/* ignore */})
+      .then((data: { pool: number }) => setJackpotPool(Number(data.pool ?? 0).toFixed(2)))
+      .catch(() => {})
 
     fetch('/api/game/rooms')
       .then(r => r.json())
       .then((data: { room10?: { stakePerCard: number } | null }) => {
-        const stake = data?.room10?.stakePerCard ?? 0
-        setStakePerCard(stake)
+        setStakePerCard(data?.room10?.stakePerCard ?? 0)
       })
-      .catch(() => {/* ignore */})
+      .catch(() => {})
   }, [])
 
-  // Countdown timer — auto-enter when it hits 0
-  useEffect(() => {
-    if (timeLeft <= 0) {
-      enterGame()
-      return
-    }
-    const id = setInterval(() => setTimeLeft(t => t - 1), 1000)
-    return () => clearInterval(id)
-  }, [timeLeft])
-
-  // Numeric total balance for checks
+  // ── Balance helpers ───────────────────────────────────────────────────────
   const totalBalanceNum = player
     ? parseFloat(player.balance) + parseFloat(player.playBalance)
     : 0
 
   const canAfford = (wantCount: number) => {
-    if (stakePerCard <= 0) return true  // free game
+    if (stakePerCard <= 0) return true
     return totalBalanceNum >= wantCount * stakePerCard
   }
 
+  // ── Card selection — emit to server immediately ───────────────────────────
   const toggleSlot = (n: number) => {
-    if (HIGHLIGHTED.has(n)) return  // taken slots are not selectable
+    if (HIGHLIGHTED.has(n)) return
     setSelectedSlots(prev => {
-      if (prev.includes(n)) return prev.filter(x => x !== n)  // deselect always ok
+      if (prev.includes(n)) {
+        socketRef.current?.emit('deselect_card', n)
+        return prev.filter(x => x !== n)
+      }
       if (prev.length >= 2) return prev
       if (!canAfford(prev.length + 1)) { setShowNoBalance(true); return prev }
+      socketRef.current?.emit('select_card', n)
       return [...prev, n]
     })
   }
@@ -67,26 +120,24 @@ export default function SlotSelectionPage() {
     if (!canAfford(count)) { setShowNoBalance(true); return }
     const available = Array.from({ length: 500 }, (_, i) => i + 1).filter(n => !HIGHLIGHTED.has(n))
     const picked = available.sort(() => Math.random() - 0.5).slice(0, count)
+    // Deselect old, select new on server
+    selectedSlotsRef.current.forEach(n => socketRef.current?.emit('deselect_card', n))
+    picked.forEach(n => socketRef.current?.emit('select_card', n))
     setSelectedSlots(picked)
-  }
-
-  const enterGame = () => {
-    sessionStorage.setItem('selectedSlots', JSON.stringify(selectedSlots))
-    navigate('/game')
   }
 
   const formatTime = (s: number) => `00:${String(Math.max(0, s)).padStart(2, '0')}`
 
-  // Render 500 numbers in rows of 8
   const numbers = Array.from({ length: 500 }, (_, i) => i + 1)
 
-  // Display name: prefer @username, fall back to first name
   const displayName = player
     ? (player.username ? `@${player.username}` : player.firstName)
     : '...'
 
-  // Formatted total balance for display
   const totalBalance = player ? totalBalanceNum.toFixed(2) : '—'
+
+  // Show a dimmed overlay when game is in progress and this player has no cards
+  const waitingForNextRound = gamePhase === 'playing' && selectedSlots.length === 0
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 30%, #2e0d10 0%, #180608 70%)', position: 'relative' }}>
@@ -145,6 +196,26 @@ export default function SlotSelectionPage() {
         </div>
       )}
 
+      {/* "Game in progress — wait for next round" overlay */}
+      {waitingForNextRound && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 90,
+          background: 'rgba(0,0,0,0.72)',
+          display: 'flex', flexDirection: 'column',
+          alignItems: 'center', justifyContent: 'center',
+          gap: 16,
+        }}>
+          <div style={{ fontSize: 40 }}>⏳</div>
+          <div className="font-condensed" style={{
+            fontSize: 22, fontWeight: 900, color: '#D4A017',
+            letterSpacing: '0.06em', textAlign: 'center',
+          }}>GAME IN PROGRESS</div>
+          <div style={{ fontSize: 14, color: '#aaa', textAlign: 'center', maxWidth: 260, lineHeight: 1.5 }}>
+            ካርቴላ አልመረጡም። ጨዋታው ሲጠናቀቅ ቀጣዩ ዙር ይጀምራል።
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div style={{ background: '#1e0909', borderBottom: '1px solid #5c1a1a', padding: '10px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -168,8 +239,15 @@ export default function SlotSelectionPage() {
           {/* Stats */}
           <div style={{ display: 'flex', gap: 6 }}>
             <div className="stat-chip">
-              <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>CLOSES IN</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#e53e3e', fontFamily: 'monospace' }}>{formatTime(timeLeft)}</span>
+              <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>
+                {gamePhase === 'playing' ? 'NEXT ROUND' : 'CLOSES IN'}
+              </span>
+              <span style={{
+                fontSize: 13, fontWeight: 700, fontFamily: 'monospace',
+                color: gamePhase === 'playing' ? '#888' : serverCountdown <= 5 ? '#ff4444' : '#e53e3e',
+              }}>
+                {gamePhase === 'playing' ? '—' : formatTime(serverCountdown)}
+              </span>
             </div>
             <div className="stat-chip">
               <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>BALANCE</span>
@@ -258,12 +336,10 @@ export default function SlotSelectionPage() {
             >
               {card ? (
                 <div style={{ width: '100%' }}>
-                  {/* Card number label */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span style={{ fontSize: 9, fontWeight: 700, color: '#888', letterSpacing: '0.05em' }}>SLOT #{i+1}</span>
                     <span style={{ fontSize: 11, fontWeight: 800, color: '#D4A017' }}>#{cardNum}</span>
                   </div>
-                  {/* Column headers */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, marginBottom: 2 }}>
                     {COLS.map(c => (
                       <div key={c} style={{
@@ -272,7 +348,6 @@ export default function SlotSelectionPage() {
                       }}>{c}</div>
                     ))}
                   </div>
-                  {/* 5x5 grid */}
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2 }}>
                     {card.map((row, r) =>
                       row.map((num, c) => (
@@ -307,7 +382,6 @@ export default function SlotSelectionPage() {
               )}
             </div>
           )})}
-
         </div>
 
         {/* Buttons */}
