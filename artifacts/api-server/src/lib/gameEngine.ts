@@ -3,7 +3,7 @@ import type { Server, Socket, Namespace } from "socket.io";
 import { logger } from "./logger";
 import { db } from "./db";
 import { CARTELAS } from "../data/cartelas";
-import { playersTable, transactionsTable, gameRoundsTable, jackpotBatchesTable, jackpotPointsTable } from "@workspace/db/schema";
+import { playersTable, transactionsTable, gameRoundsTable, jackpotBatchesTable, jackpotPointsTable, jackpotRoundLogTable } from "@workspace/db/schema";
 import { eq, sql, and, desc } from "drizzle-orm";
 import { appSettings, type RoomId } from "./settings";
 import { bot } from "./bot";
@@ -427,7 +427,7 @@ export class GameEngine {
     }
 
     // ── Jackpot: award points + fund pool + leaderboard/distribution ──────────
-    await this.handleJackpotLogic(this.roundParticipants, winnerTelegramIds, jackpotContribution);
+    await this.handleJackpotLogic(roundId, this.roundParticipants, winnerTelegramIds, jackpotContribution);
 
     this.resetRound();
   }
@@ -437,96 +437,147 @@ export class GameEngine {
   /**
    * Called at the end of every game. Awards points, funds the jackpot pool,
    * posts leaderboard after games 1–9, and distributes + resets after game 10.
+   *
+   * Idempotency: the entire batch-increment + point-award block runs inside a
+   * single DB transaction. The first step is inserting `roundId` into
+   * `jackpot_round_log` (PRIMARY KEY). If the server crashes and the function
+   * is called again for the same round, that INSERT will throw a unique-key
+   * violation and the transaction rolls back — no double-counting.
    */
   private async handleJackpotLogic(
+    roundId: string,
     roundParticipants: Map<number, { firstName: string; cardIds: number[] }>,
     winnerTelegramIds: Set<number>,
     jackpotContribution: number,
   ): Promise<void> {
+    let batchId: number;
+    let batchNumber: number;
+    let gameCount: number;
+    let currentPool: number;
+
     try {
+      // Run everything atomically. The jackpot_round_log INSERT acts as the
+      // idempotency gate: a duplicate roundId throws immediately and rolls back.
+      const result = await db.transaction(async (tx) => {
+        // ── Idempotency gate ─────────────────────────────────────────────────
+        await tx.insert(jackpotRoundLogTable).values({ roundId, batchId: 0, gameCount: 0 });
+        // (batchId / gameCount placeholders — updated below once we know them)
 
-      // 1. Get or create the active batch
-      const existingRows = await db
-        .select()
-        .from(jackpotBatchesTable)
-        .where(eq(jackpotBatchesTable.isActive, true))
-        .orderBy(desc(jackpotBatchesTable.id))
-        .limit(1);
-
-      let batchId: number;
-      let batchNumber: number;
-      let gameCount: number;
-      let currentPool: number;
-
-      if (!existingRows.length) {
-        const [newBatch] = await db
-          .insert(jackpotBatchesTable)
-          .values({ batchNumber: 1, gameCount: 1, jackpotPool: `${jackpotContribution}`, isActive: true })
-          .returning();
-        batchId = newBatch!.id;
-        batchNumber = 1;
-        gameCount = 1;
-        currentPool = jackpotContribution;
-      } else {
-        const batch = existingRows[0]!;
-        const newGameCount = batch.gameCount + 1;
-        const newPool = Number(batch.jackpotPool) + jackpotContribution;
-        const [updated] = await db
-          .update(jackpotBatchesTable)
-          .set({ gameCount: newGameCount, jackpotPool: `${newPool}` })
-          .where(eq(jackpotBatchesTable.id, batch.id))
-          .returning();
-        batchId = batch.id;
-        batchNumber = batch.batchNumber;
-        gameCount = newGameCount;
-        currentPool = Number(updated!.jackpotPool);
-      }
-
-      // 2. Award points to all participants
-      for (const [telegramId, participant] of roundParticipants) {
-        const isWinner = winnerTelegramIds.has(telegramId);
-        const pointsToAdd = isWinner ? 10 : 5; // +5 participation, +5 win bonus
-
-        const existing = await db
+        // ── 1. Get or create the active batch ────────────────────────────────
+        const existingRows = await tx
           .select()
-          .from(jackpotPointsTable)
-          .where(
-            and(
-              eq(jackpotPointsTable.batchId, batchId),
-              eq(jackpotPointsTable.telegramId, telegramId),
-            ),
-          )
+          .from(jackpotBatchesTable)
+          .where(eq(jackpotBatchesTable.isActive, true))
+          .orderBy(desc(jackpotBatchesTable.id))
           .limit(1);
 
-        if (existing.length > 0) {
-          await db
-            .update(jackpotPointsTable)
-            .set({ points: existing[0]!.points + pointsToAdd, updatedAt: new Date() })
-            .where(
-              and(
-                eq(jackpotPointsTable.batchId, batchId),
-                eq(jackpotPointsTable.telegramId, telegramId),
-              ),
-            );
-        } else {
-          await db.insert(jackpotPointsTable).values({
-            batchId,
-            batchNumber,
-            telegramId,
-            firstName: participant.firstName,
-            points: pointsToAdd,
-          });
-        }
-      }
+        let txBatchId: number;
+        let txBatchNumber: number;
+        let txGameCount: number;
+        let txCurrentPool: number;
 
-      // 3. Post leaderboard (games 1–9) or distribute jackpot (game 10)
+        if (!existingRows.length) {
+          const [newBatch] = await tx
+            .insert(jackpotBatchesTable)
+            .values({ batchNumber: 1, gameCount: 1, jackpotPool: `${jackpotContribution}`, isActive: true })
+            .returning();
+          txBatchId = newBatch!.id;
+          txBatchNumber = 1;
+          txGameCount = 1;
+          txCurrentPool = jackpotContribution;
+        } else {
+          const batch = existingRows[0]!;
+          const newGameCount = batch.gameCount + 1;
+          const newPool = Number(batch.jackpotPool) + jackpotContribution;
+          const [updated] = await tx
+            .update(jackpotBatchesTable)
+            .set({ gameCount: newGameCount, jackpotPool: `${newPool}` })
+            .where(eq(jackpotBatchesTable.id, batch.id))
+            .returning();
+          txBatchId = batch.id;
+          txBatchNumber = batch.batchNumber;
+          txGameCount = newGameCount;
+          txCurrentPool = Number(updated!.jackpotPool);
+        }
+
+        // Back-fill the real batchId / gameCount into the log row
+        await tx
+          .update(jackpotRoundLogTable)
+          .set({ batchId: txBatchId, gameCount: txGameCount })
+          .where(eq(jackpotRoundLogTable.roundId, roundId));
+
+        // ── 2. Award points (atomic per-player upsert) ───────────────────────
+        // Formula (Option A + Streak):
+        //   participation = cards × 4
+        //   win bonus     = cards × 3  (if winner)
+        //   streak bonus  = min(consecutive games in this batch, 8)
+        //
+        // INSERT … ON CONFLICT keeps per-player points safe even if the loop is
+        // partially replayed, because the transaction as a whole will roll back
+        // on a duplicate roundId before this code is reached a second time.
+        for (const [telegramId, participant] of roundParticipants) {
+          const isWinner = winnerTelegramIds.has(telegramId);
+          const cards = participant.cardIds.length;
+          const participationPts = cards * 4;
+          const winBonus = isWinner ? cards * 3 : 0;
+          const firstGamePoints = participationPts + winBonus + 1; // streak=1 on first game
+
+          await tx.execute(sql`
+            INSERT INTO jackpot_points
+              (batch_id, batch_number, telegram_id, first_name, points, streak_count, last_game_count, created_at, updated_at)
+            VALUES
+              (${txBatchId}, ${txBatchNumber}, ${telegramId}, ${participant.firstName},
+               ${firstGamePoints}, 1, ${txGameCount}, NOW(), NOW())
+            ON CONFLICT ON CONSTRAINT jackpot_points_batch_player_uidx DO UPDATE SET
+              streak_count    = CASE
+                                  WHEN jackpot_points.last_game_count = ${txGameCount} - 1
+                                    THEN LEAST(jackpot_points.streak_count + 1, 8)
+                                  ELSE 1
+                                END,
+              points          = jackpot_points.points
+                                  + ${participationPts}
+                                  + ${winBonus}
+                                  + CASE
+                                      WHEN jackpot_points.last_game_count = ${txGameCount} - 1
+                                        THEN LEAST(jackpot_points.streak_count + 1, 8)
+                                      ELSE 1
+                                    END,
+              last_game_count = ${txGameCount},
+              first_name      = ${participant.firstName},
+              updated_at      = NOW()
+          `);
+        }
+
+        return { txBatchId, txBatchNumber, txGameCount, txCurrentPool };
+      });
+
+      batchId = result.txBatchId;
+      batchNumber = result.txBatchNumber;
+      gameCount = result.txGameCount;
+      currentPool = result.txCurrentPool;
+
+    } catch (err: unknown) {
+      // A duplicate roundId means this round was already processed — safe to skip.
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("jackpot_round_log") && msg.includes("duplicate")) {
+        logger.warn({ roundId }, "handleJackpotLogic: round already processed, skipping");
+        return;
+      }
+      logger.error({ err, roundId }, "handleJackpotLogic error");
+      return;
+    }
+
+    // ── 3. Post leaderboard (games 1–9) or distribute jackpot (game 10) ──────
+    // These run outside the transaction: they're external side-effects (Telegram
+    // messages, balance credits) that must not block the DB commit.
+    try {
       if (gameCount < 10) {
         await this.postLeaderboardToChannel(batchId, batchNumber, gameCount, currentPool);
       } else {
         await this.distributeJackpot(batchId, batchNumber, currentPool);
       }
     } catch (err) {
-      logger.error({ err }, "handleJackpotLogic error");
+      logger.error({ err, roundId, gameCount }, "handleJackpotLogic: post-commit step failed");
     }
   }
 

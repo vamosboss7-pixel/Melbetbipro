@@ -198,6 +198,65 @@ async function ensureTablesExist() {
     await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS total_invite_bonus NUMERIC(12,2) NOT NULL DEFAULT 0`);
     await db.execute(sql`ALTER TABLE game_rounds ADD COLUMN IF NOT EXISTS room_id TEXT NOT NULL DEFAULT 'room1'`);
     await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS jackpot_batches (
+        id SERIAL PRIMARY KEY,
+        batch_number INTEGER NOT NULL,
+        game_count INTEGER NOT NULL DEFAULT 0,
+        jackpot_pool NUMERIC(12,2) NOT NULL DEFAULT 0.00,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        completed_at TIMESTAMP
+      )
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS jackpot_points (
+        id SERIAL PRIMARY KEY,
+        batch_id INTEGER NOT NULL,
+        batch_number INTEGER NOT NULL,
+        telegram_id BIGINT NOT NULL,
+        first_name TEXT NOT NULL,
+        points INTEGER NOT NULL DEFAULT 0,
+        streak_count INTEGER NOT NULL DEFAULT 1,
+        last_game_count INTEGER NOT NULL DEFAULT 0,
+        created_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMP NOT NULL DEFAULT NOW(),
+        CONSTRAINT jackpot_points_batch_player_uidx UNIQUE (batch_id, telegram_id)
+      )
+    `);
+    await db.execute(sql`ALTER TABLE jackpot_points ADD COLUMN IF NOT EXISTS streak_count INTEGER NOT NULL DEFAULT 1`);
+    await db.execute(sql`ALTER TABLE jackpot_points ADD COLUMN IF NOT EXISTS last_game_count INTEGER NOT NULL DEFAULT 0`);
+    // Deduplicate any legacy duplicate (batch_id, telegram_id) rows before adding
+    // the unique constraint — keeps the row with the highest points (max id as tiebreak).
+    // Safe on empty / already-unique tables (DELETE affects 0 rows).
+    await db.execute(sql`
+      DELETE FROM jackpot_points
+      WHERE id NOT IN (
+        SELECT MAX(id)
+        FROM jackpot_points
+        GROUP BY batch_id, telegram_id
+      )
+    `);
+    // Add unique constraint to existing tables that were created without it
+    await db.execute(sql`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1 FROM pg_constraint WHERE conname = 'jackpot_points_batch_player_uidx'
+        ) THEN
+          ALTER TABLE jackpot_points
+            ADD CONSTRAINT jackpot_points_batch_player_uidx UNIQUE (batch_id, telegram_id);
+        END IF;
+      END$$
+    `);
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS jackpot_round_log (
+        round_id TEXT PRIMARY KEY,
+        batch_id INTEGER NOT NULL,
+        game_count INTEGER NOT NULL,
+        processed_at TIMESTAMP NOT NULL DEFAULT NOW()
+      )
+    `);
+    await db.execute(sql`
       CREATE TABLE IF NOT EXISTS lucky_box_sessions (
         id SERIAL PRIMARY KEY,
         title TEXT NOT NULL,
