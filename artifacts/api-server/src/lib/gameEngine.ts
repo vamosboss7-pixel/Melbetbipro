@@ -678,26 +678,37 @@ export class GameEngine {
 
       logger.info({ batchNumber, currentPool, winners: prizes.length }, "Jackpot distributed, new batch started");
 
-      // Announce in channel
-      const channelId = process.env["ANNOUNCEMENT_CHANNEL_ID"] ?? "";
-      if (channelId) {
-        const winnerMedals = ["🥇", "🥈", "🥉"];
-        const winLines = prizes.map(
-          (p, i) =>
-            `${winnerMedals[i]} *${p.firstName}* — ${p.points} pts → *${p.prize.toFixed(2)} ETB*`,
-        );
+      // Announce in channel(s)
+      const winnerMedals = ["🥇", "🥈", "🥉"];
+      const winLines = prizes.map(
+        (p, i) =>
+          `${winnerMedals[i]} *${p.firstName}* — ${p.points} pts → *${p.prize.toFixed(2)} ETB*`,
+      );
 
-        const msg =
-          `🔥 ጃክፖቱ ተበላ!\n\n` +
-          `በዙር #${batchNumber} *${currentPool.toFixed(2)} ብር* ለታደሉት ተጫዋቾቻችን ተከፍሏል!\n\n` +
-          `👇 ዕድለኞቹ:\n` +
-          winLines.join("\n") +
-          `\n\n⚡ ቀጣዩ ዙር አሁን ተጀምሯል! ቀድመው በመግባት ማሸነፍ ይጀምሩ! 💸`;
+      const msg =
+        `🔥 ጃክፖቱ ተበላ!\n\n` +
+        `በዙር #${batchNumber} *${currentPool.toFixed(2)} ብር* ለተፋላሚዎቹ ተከፍሏል!\n\n` +
+        `👇 ዕድለኞቹ:\n` +
+        winLines.join("\n") +
+        `\n\n⚡ ቀጣዩ ዙር አሁን ተጀምሯል! ቀድመው በመግባት ማሸነፍ ይጀምሩ! 💸 ቀጣዩን ጃክፖት የእርስዎ ያድርጉ 🎯`;
 
+      // Send to announcement channel (general game channel)
+      const announcementChannel = process.env["ANNOUNCEMENT_CHANNEL_ID"] ?? "";
+      if (announcementChannel) {
         try {
-          await bot.api.sendMessage(channelId, msg, { parse_mode: "Markdown" });
+          await bot.api.sendMessage(announcementChannel, msg, { parse_mode: "Markdown" });
         } catch (err) {
-          logger.error({ err }, "Failed to send jackpot distribution announcement");
+          logger.error({ err }, "Failed to send jackpot announcement to announcement channel");
+        }
+      }
+
+      // Also send to dedicated jackpot channel if configured separately
+      const jackpotChannel = process.env["JACKPOT_CHANNEL_ID"] ?? "";
+      if (jackpotChannel && jackpotChannel !== announcementChannel) {
+        try {
+          await bot.api.sendMessage(jackpotChannel, msg, { parse_mode: "Markdown" });
+        } catch (err) {
+          logger.error({ err }, "Failed to send jackpot announcement to jackpot channel");
         }
       }
     } catch (err) {
