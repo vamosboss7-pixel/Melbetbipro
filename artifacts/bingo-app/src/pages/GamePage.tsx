@@ -77,7 +77,7 @@ export default function GamePage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 25%, #2e0d10 0%, #180608 70%)', overflow: 'hidden' }}>
 
       {/* Top Header */}
-      <div style={{ background: '#1a0708', borderBottom: '1px solid #5c1a1a', padding: '8px 10px', flexShrink: 0 }}>
+      <div style={{ background: '#1a0708', borderBottom: '1.5px solid #c0392b', boxShadow: '0 2px 10px rgba(192,57,43,0.4)', padding: '8px 10px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <div style={{
             width: 34, height: 34, borderRadius: '50%',

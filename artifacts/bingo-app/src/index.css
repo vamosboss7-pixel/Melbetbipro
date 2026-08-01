@@ -45,8 +45,9 @@ body {
 /* Card styles */
 .game-card {
   background: #250d0d;
-  border: 1px solid #5c1a1a;
+  border: 1.5px solid #c0392b;
   border-radius: 12px;
+  box-shadow: 0 0 10px rgba(192, 57, 43, 0.45), inset 0 0 6px rgba(192, 57, 43, 0.1);
 }
 
 /* Gold gradient button */
