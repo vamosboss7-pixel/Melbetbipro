@@ -6,19 +6,19 @@ const WINNING_CARD = {
   numbers: [
     [4,  17, 32, 47, 62],
     [10, 20, 39, 51, 66],
-    [11, 25,  0, 52, 67],  // 0 = FREE
+    [11, 25,  0, 52, 67],
     [13, 26, 41, 53, 69],
     [14, 27, 45, 54, 70],
   ],
   called: new Set([4, 62, 39, 25, 14, 70, 5, 15, 29]),
 }
 
-const CONFETTI = Array.from({ length: 28 }, (_, i) => ({
+const CONFETTI = Array.from({ length: 20 }, (_, i) => ({
   id: i,
   left: `${Math.random() * 100}%`,
   top: `${Math.random() * 90}%`,
   color: i % 3 === 0 ? '#D4A017' : i % 3 === 1 ? '#22c55e' : '#e53e3e',
-  size: 5 + Math.random() * 6,
+  size: 4 + Math.random() * 5,
   delay: `${Math.random() * 3}s`,
   duration: `${2.5 + Math.random() * 2}s`,
 }))
@@ -32,11 +32,7 @@ export default function WinnerPage() {
   useEffect(() => {
     const t = setInterval(() => {
       setCountdown(c => {
-        if (c <= 1) {
-          clearInterval(t)
-          navigate('/')
-          return 0
-        }
+        if (c <= 1) { clearInterval(t); navigate('/'); return 0 }
         return c - 1
       })
     }, 1000)
@@ -45,112 +41,91 @@ export default function WinnerPage() {
 
   return (
     <div style={{
-      minHeight: '100vh',
+      height: '100vh',
+      overflow: 'hidden',
       background: 'radial-gradient(ellipse at 50% 30%, #2e0d10 0%, #180608 70%)',
-      padding: '20px 14px 120px',
-      overflowY: 'auto',
+      display: 'flex', flexDirection: 'column',
+      padding: '10px 12px 12px',
       position: 'relative',
+      boxSizing: 'border-box',
     }}>
       {/* Confetti */}
       {CONFETTI.map(c => (
         <div key={c.id} style={{
-          position: 'fixed',
-          left: c.left,
-          top: c.top,
-          width: c.size,
-          height: c.size,
-          borderRadius: '50%',
-          background: c.color,
-          opacity: 0.7,
-          pointerEvents: 'none',
-          zIndex: 0,
+          position: 'fixed', left: c.left, top: c.top,
+          width: c.size, height: c.size, borderRadius: '50%',
+          background: c.color, opacity: 0.6, pointerEvents: 'none', zIndex: 0,
           animation: `confetti-fall ${c.duration} ${c.delay} linear infinite`,
         }} />
       ))}
 
-      <div style={{ position: 'relative', zIndex: 1 }}>
-        {/* Trophy */}
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 10 }}>
-          <svg width="52" height="52" viewBox="0 0 52 52" fill="none">
+      <div style={{ position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', height: '100%', gap: 8 }}>
+
+        {/* Trophy + Title */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, flexShrink: 0 }}>
+          <svg width="34" height="34" viewBox="0 0 52 52" fill="none">
             <path d="M16 6 L36 6 L36 28 C36 36 26 42 26 42 C26 42 16 36 16 28 Z" fill="#c0392b" stroke="#E91E8C" strokeWidth="1.5"/>
             <path d="M8 8 L16 8 L16 22 C8 22 4 16 8 8 Z" fill="#b91c1c" stroke="#E91E8C" strokeWidth="1"/>
             <path d="M44 8 L36 8 L36 22 C44 22 48 16 44 8 Z" fill="#b91c1c" stroke="#E91E8C" strokeWidth="1"/>
             <rect x="20" y="42" width="12" height="4" rx="1" fill="#E91E8C"/>
             <rect x="15" y="46" width="22" height="4" rx="2" fill="#E91E8C"/>
-            <path d="M22 20 L24 24 L28 24 L25 27 L26 31 L26 31 L22 28 L22 28 L20 31 L21 27 L18 24 L22 24 Z" fill="#FFD700"/>
+            <path d="M22 20 L24 24 L28 24 L25 27 L26 31 L22 28 L20 31 L21 27 L18 24 L22 24 Z" fill="#FFD700"/>
           </svg>
-        </div>
-
-        {/* Title */}
-        <h1 className="font-condensed" style={{
-          textAlign: 'center', fontSize: 30, fontWeight: 900,
-          color: '#D4A017', letterSpacing: '0.06em', lineHeight: 1.15, marginBottom: 4,
-        }}>
-          BEHERAWI CHAMPION<br />DECLARED
-        </h1>
-        <p style={{ textAlign: 'center', fontSize: 11, color: '#888', letterSpacing: '0.08em', marginBottom: 16, fontWeight: 500 }}>
-          TOTAL DERASH PRIZE POOL
-        </p>
-
-        {/* Grand pool */}
-        <div className="game-card" style={{ padding: '12px 20px', marginBottom: 12, textAlign: 'center' }}>
-          <span style={{ fontSize: 14, color: '#ccc', fontWeight: 600, letterSpacing: '0.04em' }}>GRAND POOL:&nbsp;</span>
-          <span className="font-condensed" style={{ fontSize: 22, fontWeight: 900, color: '#D4A017', letterSpacing: '0.04em' }}>656 ETB</span>
-        </div>
-
-        {/* Winner info */}
-        <div className="game-card" style={{ padding: '12px 14px', marginBottom: 12 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-            <div style={{
-              width: 36, height: 36, borderRadius: '50%',
-              background: '#c0392b', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', fontSize: 14, color: '#fff', fontWeight: 800,
-              flexShrink: 0, border: '2px solid #D4A017',
-            }}>@</div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>@LENSA</div>
-              <div style={{ fontSize: 10, color: '#888' }}>PLAYER NODE: 944401</div>
+          <div>
+            <div className="font-condensed" style={{ fontSize: 22, fontWeight: 900, color: '#D4A017', letterSpacing: '0.06em', lineHeight: 1.1 }}>
+              BEHERAWI CHAMPION
+            </div>
+            <div style={{ fontSize: 9, color: '#888', letterSpacing: '0.08em', fontWeight: 500, textAlign: 'center' }}>
+              TOTAL DERASH PRIZE POOL
             </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #3a1212', paddingTop: 10 }}>
-            <span style={{ fontSize: 11, color: '#888', fontWeight: 600, letterSpacing: '0.04em' }}>PAYOUT:</span>
-            <span className="font-condensed" style={{ fontSize: 20, fontWeight: 900, color: '#D4A017' }}>656 ETB</span>
+        </div>
+
+        {/* Grand pool + Winner side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, flexShrink: 0 }}>
+          <div className="game-card" style={{ padding: '8px 10px', textAlign: 'center' }}>
+            <div style={{ fontSize: 9, color: '#888', fontWeight: 600, letterSpacing: '0.04em', marginBottom: 2 }}>GRAND POOL</div>
+            <div className="font-condensed" style={{ fontSize: 20, fontWeight: 900, color: '#D4A017' }}>656 ETB</div>
+          </div>
+          <div className="game-card" style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{
+              width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
+              background: '#c0392b', display: 'flex', alignItems: 'center',
+              justifyContent: 'center', fontSize: 11, color: '#fff', fontWeight: 800,
+              border: '1.5px solid #D4A017',
+            }}>@</div>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>@LENSA</div>
+              <div style={{ fontSize: 9, color: '#D4A017', fontWeight: 700 }}>656 ETB</div>
+            </div>
           </div>
         </div>
 
         {/* Winning cartela */}
-        <div className="game-card" style={{ padding: '12px 14px', marginBottom: 14 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
-            <span style={{ fontSize: 13 }}>👑</span>
-            <span className="font-condensed" style={{ fontSize: 13, fontWeight: 700, color: '#D4A017', letterSpacing: '0.05em' }}>
-              Cartela #318
-            </span>
-            <span style={{
-              background: '#7c3aed', borderRadius: 4,
-              padding: '2px 8px', fontSize: 9, fontWeight: 700, color: '#fff', letterSpacing: '0.06em',
-            }}>VIP TICKET</span>
+        <div className="game-card" style={{ padding: '8px 10px', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+            <span style={{ fontSize: 11 }}>👑</span>
+            <span className="font-condensed" style={{ fontSize: 12, fontWeight: 700, color: '#D4A017', letterSpacing: '0.05em' }}>Cartela #318</span>
+            <span style={{ background: '#7c3aed', borderRadius: 4, padding: '1px 6px', fontSize: 8, fontWeight: 700, color: '#fff', letterSpacing: '0.06em' }}>VIP</span>
           </div>
-
-          {/* Bingo card */}
-          {/* Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, marginBottom: 4 }}>
-            {['B', 'I', 'N', 'G', 'O'].map(c => (
+          {/* BINGO header */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, marginBottom: 3 }}>
+            {['B','I','N','G','O'].map(c => (
               <div key={c} style={{
-                background: '#1a1a2e', borderRadius: 4,
+                background: '#1a1a2e', borderRadius: 3,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: '5px 0', fontSize: 13, fontWeight: 900, color: '#fff', letterSpacing: '0.04em',
+                padding: '3px 0', fontSize: 11, fontWeight: 900, color: '#fff',
               }}>{c}</div>
             ))}
           </div>
-          {/* Rows */}
+          {/* Card rows */}
           {WINNING_CARD.numbers.map((row, ri) => (
-            <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 4, marginBottom: 4 }}>
+            <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, marginBottom: 3 }}>
               {row.map((num, ci) => {
                 const isFree = num === 0
                 const isMatched = !isFree && WINNING_CARD.called.has(num)
                 return (
-                  <div key={ci} className={`bingo-cell${isFree ? ' free' : isMatched ? ' matched' : ''}`}
-                    style={{ height: 40 }}>
+                  <div key={ci} className={`bingo-cell${isFree ? ' free' : isMatched ? ' matched' : ''}`} style={{ height: 30, fontSize: 10 }}>
                     {isFree ? '👑' : num}
                   </div>
                 )
@@ -160,42 +135,42 @@ export default function WinnerPage() {
         </div>
 
         {/* Stats bar */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, flexShrink: 0 }}>
           {[
             { value: '1', label: 'BINGO LINE' },
             { value: '16', label: 'BALLS CALLED' },
             { value: '48S', label: 'DURATION' },
           ].map((s, i) => (
-            <div key={i} className="game-card" style={{ padding: '10px 8px', textAlign: 'center' }}>
-              <div className="font-condensed" style={{ fontSize: 22, fontWeight: 900, color: '#fff' }}>{s.value}</div>
-              <div style={{ fontSize: 9, color: '#888', letterSpacing: '0.06em', fontWeight: 600 }}>{s.label}</div>
+            <div key={i} className="game-card" style={{ padding: '6px 8px', textAlign: 'center' }}>
+              <div className="font-condensed" style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>{s.value}</div>
+              <div style={{ fontSize: 8, color: '#888', letterSpacing: '0.06em', fontWeight: 600 }}>{s.label}</div>
             </div>
           ))}
         </div>
 
-        {/* Next match countdown */}
-        <div style={{ textAlign: 'center', marginBottom: 10 }}>
-          <span className="font-condensed" style={{ fontSize: 14, fontWeight: 700, color: '#e53e3e', letterSpacing: '0.08em' }}>
-            NEXT MATCH STARTS IN {countdown}S
-          </span>
-        </div>
-        <div style={{ height: 6, background: '#2a0e0e', borderRadius: 4, overflow: 'hidden', marginBottom: 20 }}>
-          <div className="progress-fill" style={{ width: `${(countdown / TOTAL_COUNTDOWN) * 100}%` }} />
+        {/* Countdown + progress */}
+        <div style={{ flexShrink: 0 }}>
+          <div style={{ textAlign: 'center', marginBottom: 6 }}>
+            <span className="font-condensed" style={{ fontSize: 13, fontWeight: 700, color: '#e53e3e', letterSpacing: '0.08em' }}>
+              NEXT MATCH STARTS IN {countdown}S
+            </span>
+          </div>
+          <div style={{ height: 5, background: '#2a0e0e', borderRadius: 4, overflow: 'hidden' }}>
+            <div className="progress-fill" style={{ width: `${(countdown / TOTAL_COUNTDOWN) * 100}%` }} />
+          </div>
         </div>
 
         {/* Back to lobby */}
         <button
           className="btn-enter"
           onClick={() => navigate('/')}
-          style={{
-            width: '100%', padding: '14px 0', fontSize: 16,
-            border: 'none', cursor: 'pointer',
-          }}
+          style={{ flexShrink: 0, width: '100%', padding: '11px 0', border: 'none', cursor: 'pointer' }}
         >
-          <span className="font-condensed" style={{ letterSpacing: '0.1em', fontSize: 18, fontWeight: 800 }}>
+          <span className="font-condensed" style={{ letterSpacing: '0.1em', fontSize: 16, fontWeight: 800 }}>
             BACK TO LOBBY
           </span>
         </button>
+
       </div>
     </div>
   )
