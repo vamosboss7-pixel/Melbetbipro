@@ -280,30 +280,33 @@ bot.command("start", async (ctx) => {
   // Join Channel URL — hardcoded to official channel
   const joinChannelUrl = "https://t.me/melkambingo";
 
-  // Build 2-column inline keyboard — Balance/Invite/Promo/Support merged into top rows
+  // Build inline keyboard matching app layout
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const startKb: any[][] = [
     [
-      ...(playUrl ? [{ text: "🎮 Play", web_app: { url: playUrl } }] : [{ text: "🎮 Play", callback_data: `cmd_noplay_${user.id}` }]),
-      { text: "📝 Register", callback_data: `cmd_register_${user.id}` },
+      ...(playUrl ? [{ text: "🎮 Play Game (ካፈት)", web_app: { url: playUrl } }] : [{ text: "🎮 Play Game (ካፈት)", callback_data: `cmd_noplay_${user.id}` }]),
     ],
     [
-      { text: "💳 Deposit", callback_data: `cmd_deposit_${user.id}` },
-      { text: "💰 Balance", callback_data: `cmd_balance_${user.id}` },
+      { text: "🏦 Add Funds (ገንዘብ አስገቡ)", callback_data: `cmd_deposit_${user.id}` },
+      { text: "💵 Cash Out (ወጡ)", callback_data: `cmd_withdraw_${user.id}` },
     ],
     [
-      { text: "🦁 Withdraw", callback_data: `cmd_withdraw_${user.id}` },
-      { text: "🔗 Invite Link", callback_data: `cmd_invite_${user.id}` },
+      { text: "📊 My Balance (ቀሪ ሂሳብ)", callback_data: `cmd_balance_${user.id}` },
+      { text: "🤝 Refer & Earn (ጋብዙ)", callback_data: `cmd_invite_${user.id}` },
+    ],
+    [
+      { text: "📜 How to Play (መመሪያ)", callback_data: `cmd_howtoplay_${user.id}` },
+      { text: "🎧 Support (እርዳታ)", callback_data: `cmd_support_${user.id}` },
+    ],
+    [
+      { text: "👤 Register (መመዝገቢያ)", callback_data: `cmd_register_${user.id}` },
     ],
     [
       { text: "🎟 Promo Code", callback_data: `cmd_promo_${user.id}` },
-      { text: "🆘 Support", callback_data: `cmd_support_${user.id}` },
-    ],
-    [
       { text: "🔄 Transfer", callback_data: `cmd_transfer_${user.id}` },
-      { text: "📣 Join Channel", url: joinChannelUrl },
     ],
     [
+      { text: "📣 Join Channel", url: joinChannelUrl },
       { text: "📢 የቻናል ቦነስ (5 ብር)", callback_data: `cmd_channel_bonus_${user.id}` },
     ],
     // Admin button — only visible to the designated main admin
@@ -316,25 +319,25 @@ bot.command("start", async (ctx) => {
   const welcomeText =
     `🎱 <b>እንኳን ወደ Melbet BINGO መጡ!</b>\n\n` +
     `🎮 <b>ለጀማሪዎች — እንዴት ይጀምሩ?</b>\n` +
-    `1️⃣ <b>📝 Register</b> — አካዉንት ይክፈቱ\n` +
-    `2️⃣ <b>💳 Deposit</b> — ከ10ብር ጀምሮ ያስገቡ\n` +
-    `3️⃣ <b>🎮 Play</b> — ጨዋታ ይጀምሩ!\n\n` +
+    `1️⃣ <b>👤 Register</b> — አካዉንት ይክፈቱ\n` +
+    `2️⃣ <b>🏦 Add Funds</b> — ከ10ብር ጀምሮ ያስገቡ\n` +
+    `3️⃣ <b>🎮 Play Game</b> — ጨዋታ ይጀምሩ!\n\n` +
     `📋 <b>ሌሎች አማራጮች</b>\n` +
-    `💰 <b>Balance</b> — ቀሪ ሂሳብ ያሳያሉ\n` +
-    `🦁 <b>Withdraw</b> — ገንዘብ ያውጡ\n` +
-    `🔗 <b>Invite Link</b> — ጓደኛ ጋብዙ (5% ቦነስ)\n` +
+    `📊 <b>My Balance</b> — ቀሪ ሂሳብ ያሳያሉ\n` +
+    `💵 <b>Cash Out</b> — ገንዘብ ያውጡ\n` +
+    `🤝 <b>Refer & Earn</b> — ጓደኛ ጋብዙ (5% ቦነስ)\n` +
     `🎟 <b>Promo Code</b> — ፕሮሞ ኮድ ያስገቡ\n` +
     `🔄 <b>Transfer</b> — ወደ ሌላ ላኩ\n` +
     `📣 <b>Join Channel</b> — ቻናሉን ይቀላቀሉ\n` +
-    `🆘 <b>Support</b> — እርዳታ ይጠይቁ\n\n` +
+    `🎧 <b>Support</b> — እርዳታ ይጠይቁ\n\n` +
     `👇 ከታቹ ቁልፍ ይምረጡ`;
 
   // Short caption for photo messages (Telegram limit: 1024 chars)
   const welcomeCaption =
     `🎱 <b>እንኳን ወደ Melbet BINGO መጡ!</b>\n\n` +
-    `1️⃣ 📝 Register — አካዉንት ይክፈቱ\n` +
-    `2️⃣ 💳 Deposit — ከ10ብር ጀምሮ ያስገቡ\n` +
-    `3️⃣ 🎮 Play — ጨዋታ ይጀምሩ!\n\n` +
+    `1️⃣ 👤 Register — አካዉንት ይክፈቱ\n` +
+    `2️⃣ 🏦 Add Funds — ከ10ብር ጀምሮ ያስገቡ\n` +
+    `3️⃣ 🎮 Play Game — ጨዋታ ይጀምሩ!\n\n` +
     `👇 ከታቹ ቁልፍ ይምረጡ`;
 
   // Send welcome photo from DB setting (Base64) or env-var Telegram file_id, fallback to text.
@@ -374,27 +377,26 @@ bot.command("start", async (ctx) => {
     logger.error({ err: startErr, telegramId: user.id }, "/start handler error — sending fallback");
     try {
       const fallbackKb = [
+        [{ text: "🎮 Play Game (ካፈት)", callback_data: `cmd_noplay_${user.id}` }],
         [
-          { text: "🎮 Play", callback_data: `cmd_noplay_${user.id}` },
-          { text: "📝 Register", callback_data: `cmd_register_${user.id}` },
+          { text: "🏦 Add Funds (ገንዘብ አስገቡ)", callback_data: `cmd_deposit_${user.id}` },
+          { text: "💵 Cash Out (ወጡ)", callback_data: `cmd_withdraw_${user.id}` },
         ],
         [
-          { text: "💳 Deposit", callback_data: `cmd_deposit_${user.id}` },
-          { text: "💰 Balance", callback_data: `cmd_balance_${user.id}` },
+          { text: "📊 My Balance (ቀሪ ሂሳብ)", callback_data: `cmd_balance_${user.id}` },
+          { text: "🤝 Refer & Earn (ጋብዙ)", callback_data: `cmd_invite_${user.id}` },
         ],
         [
-          { text: "🦁 Withdraw", callback_data: `cmd_withdraw_${user.id}` },
-          { text: "🔗 Invite Link", callback_data: `cmd_invite_${user.id}` },
+          { text: "📜 How to Play (መመሪያ)", callback_data: `cmd_howtoplay_${user.id}` },
+          { text: "🎧 Support (እርዳታ)", callback_data: `cmd_support_${user.id}` },
         ],
+        [{ text: "👤 Register (መመዝገቢያ)", callback_data: `cmd_register_${user.id}` }],
         [
           { text: "🎟 Promo Code", callback_data: `cmd_promo_${user.id}` },
-          { text: "🆘 Support", callback_data: `cmd_support_${user.id}` },
-        ],
-        [
           { text: "🔄 Transfer", callback_data: `cmd_transfer_${user.id}` },
-          { text: "📣 Join Channel", url: "https://t.me/melkambingo" },
         ],
         [
+          { text: "📣 Join Channel", url: "https://t.me/melkambingo" },
           { text: "📢 የቻናል ቦነስ (5 ብር)", callback_data: `cmd_channel_bonus_${user.id}` },
         ],
       ];
@@ -649,6 +651,26 @@ bot.callbackQuery(/^cmd_admin_(\d+)$/, async (ctx) => {
   supportSessions.delete(userId);
   await ctx.reply(
     `🔐 <b>Admin Panel</b>\n\nፓስወርድ ያስገቡ:`,
+    { parse_mode: "HTML" }
+  );
+});
+
+// ── How to Play button ────────────────────────────────────────────────────────
+bot.callbackQuery(/^cmd_howtoplay_(\d+)$/, async (ctx) => {
+  const userId = Number(ctx.match[1]);
+  if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery();
+  await ctx.reply(
+    `📜 <b>How to Play — እንዴት ይጫወታሉ?</b>\n\n` +
+    `1️⃣ <b>👤 Register</b> — አካዉንት ይክፈቱ\n` +
+    `2️⃣ <b>🏦 Add Funds</b> — ከ10ብር ጀምሮ ያስገቡ\n` +
+    `3️⃣ <b>🎮 Play Game</b> — ቁልፉን ተጫኑ፣ ካርቴላ ይምረጡ (እስከ 6)\n` +
+    `4️⃣ 30 ሴኮንድ ቆጠራ ካለቀ ጨዋታ ይጀምራል\n` +
+    `5️⃣ ኳሶች ሲወጡ ካርቴላዎ ይሞላሉ\n` +
+    `6️⃣ ረድፍ፣ አምድ፣ ሰያፍ፣ ወይም 4 ጥግ ካሙሉ — <b>BINGO! 🎉</b>\n\n` +
+    `💡 <b>ምክር:</b> ካርቴላ ይበልጥ ይምረጡ — ሽልማት ሰፋ ይላል!\n\n` +
+    `💵 <b>Cash Out</b> — ወዲያው ወደ Telebirr ይወጣሉ\n` +
+    `🤝 <b>Refer & Earn</b> — ጓደኛ ሲጋበዙ 5% ቦነስ ዘወትር ያገኛሉ!`,
     { parse_mode: "HTML" }
   );
 });
