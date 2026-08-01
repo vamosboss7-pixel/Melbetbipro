@@ -42,6 +42,19 @@ export default function GamePage() {
     } catch { return [] }
   })
 
+  const [jackpotPool, setJackpotPool] = useState<string>('0.00')
+  const [jackpotGame, setJackpotGame] = useState<number>(0)
+
+  useEffect(() => {
+    fetch('/api/jackpot/status')
+      .then(r => r.json())
+      .then((data: { pool: number; gameNumber: number }) => {
+        setJackpotPool(Number(data.pool ?? 0).toFixed(2))
+        setJackpotGame(Number(data.gameNumber ?? 0))
+      })
+      .catch(() => {/* ignore */})
+  }, [])
+
   const { player } = usePlayer()
   const identity = player ? { telegramId: player.telegramId, firstName: player.firstName } : null
   const { connected, gameState, winner } = useGame(selectedSlots, identity)
@@ -258,6 +271,55 @@ export default function GamePage() {
                 })}
               </div>
             )}
+          </div>
+
+          {/* Jackpot Banner */}
+          <div style={{
+            marginTop: 6,
+            flexShrink: 0,
+            borderRadius: 10,
+            overflow: 'hidden',
+            border: '1.5px solid #b8860b',
+            background: 'linear-gradient(135deg, #1a0a00 0%, #2d1200 50%, #1a0a00 100%)',
+            boxShadow: '0 0 12px rgba(212,160,23,0.25)',
+            padding: '8px 10px',
+          }}>
+            {/* Top row: trophy + JACKPOT label + amount */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <span style={{ fontSize: 14 }}>🏆</span>
+                <span className="font-condensed" style={{
+                  fontSize: 11, fontWeight: 900, letterSpacing: '0.1em',
+                  background: 'linear-gradient(90deg, #FFD700, #FFA500)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                }}>JACKPOT</span>
+                <span style={{
+                  background: '#7c1a00', border: '1px solid #D4A017',
+                  borderRadius: 3, padding: '0px 5px',
+                  fontSize: 8, fontWeight: 700, color: '#FFD700', letterSpacing: '0.05em',
+                }}>ACTIVE</span>
+              </div>
+              <div style={{ textAlign: 'right' }}>
+                <div style={{
+                  fontSize: 14, fontWeight: 900,
+                  background: 'linear-gradient(90deg, #FFD700, #FFA500)',
+                  WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                  lineHeight: 1,
+                }}>{jackpotPool} ETB</div>
+                <div style={{ fontSize: 8, color: '#888', marginTop: 1 }}>Game #{jackpotGame}</div>
+              </div>
+            </div>
+            {/* Divider */}
+            <div style={{ borderTop: '1px solid #3d2000', margin: '4px 0' }} />
+            {/* Promo text */}
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 9, fontWeight: 800, color: '#FFD700', letterSpacing: '0.04em', lineHeight: 1.4 }}>
+                በየአስር ጨዋታ ድርብ ድል
+              </div>
+              <div style={{ fontSize: 8, color: '#aaa', letterSpacing: '0.03em' }}>
+                Double Win Every 10 Games
+              </div>
+            </div>
           </div>
         </div>
 
