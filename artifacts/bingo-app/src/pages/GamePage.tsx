@@ -205,7 +205,14 @@ export default function GamePage() {
                   const card = CARTELAS[slotNum - 1]
                   if (!card) return null
                   return (
-                    <div key={slotNum} style={{ flexShrink: 0 }}>
+                    <div key={slotNum} style={{
+                      flexShrink: 0,
+                      border: '1.5px solid #c0392b',
+                      borderRadius: 10,
+                      padding: '8px 7px 7px',
+                      boxShadow: '0 0 8px rgba(192,57,43,0.35), inset 0 0 4px rgba(192,57,43,0.08)',
+                      background: '#1c0808',
+                    }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                         <span style={{ fontSize: 9, fontWeight: 700, color: '#888' }}>CARTELA {idx + 1}</span>
                         <span style={{ fontSize: 10, fontWeight: 800, color: '#D4A017' }}>#{slotNum}</span>
