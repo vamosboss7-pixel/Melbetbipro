@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import { CARTELAS } from '../data/cartelas'
 import { useGame } from '../hooks/useGame'
+import { usePlayer } from '../context/PlayerContext'
 
 const BINGO_COLS = ['B', 'I', 'N', 'G', 'O'] as const
 const COL_RANGES: Record<string, [number, number]> = {
@@ -41,7 +42,9 @@ export default function GamePage() {
     } catch { return [] }
   })
 
-  const { connected, gameState, winner } = useGame(selectedSlots)
+  const { player } = usePlayer()
+  const identity = player ? { telegramId: player.telegramId, firstName: player.firstName } : null
+  const { connected, gameState, winner } = useGame(selectedSlots, identity)
   const calledSet = new Set(gameState.calledBalls)
   const COLS = ['B', 'I', 'N', 'G', 'O']
 

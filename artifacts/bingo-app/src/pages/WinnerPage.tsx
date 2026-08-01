@@ -7,17 +7,6 @@ interface WinnerData {
   prizePerWinner: number
 }
 
-const FALLBACK_CARD = {
-  numbers: [
-    [4,  17, 32, 47, 62],
-    [10, 20, 39, 51, 66],
-    [11, 25,  0, 52, 67],
-    [13, 26, 41, 53, 69],
-    [14, 27, 45, 54, 70],
-  ],
-  called: new Set([4, 62, 39, 25, 14, 70]),
-}
-
 const CONFETTI = Array.from({ length: 20 }, (_, i) => ({
   id: i,
   left: `${Math.random() * 100}%`,
@@ -34,17 +23,25 @@ export default function WinnerPage() {
   const [, navigate] = useLocation()
   const [countdown, setCountdown] = useState(TOTAL_COUNTDOWN)
 
-  // Load winner data from sessionStorage (set by GamePage)
+  // Load winner data and called balls from sessionStorage (set by GamePage/useGame)
   const [winnerData] = useState<WinnerData | null>(() => {
     try {
       const raw = sessionStorage.getItem('winnerData')
-      return raw ? JSON.parse(raw) : null
+      return raw ? JSON.parse(raw) as WinnerData : null
     } catch { return null }
   })
 
+  const [calledBalls] = useState<number[]>(() => {
+    try {
+      const raw = sessionStorage.getItem('calledBalls')
+      return raw ? JSON.parse(raw) as number[] : []
+    } catch { return [] }
+  })
+
   const winner = winnerData?.winners?.[0]
-  const cardNumbers = winner?.card ?? FALLBACK_CARD.numbers
+  const cardNumbers = winner?.card ?? null
   const winPattern = new Set(winner?.winPattern ?? [])
+  const calledSet = new Set(calledBalls)
   const prizePer = winnerData?.prizePerWinner ?? 0
 
   useEffect(() => {
@@ -112,7 +109,7 @@ export default function WinnerPage() {
             }}>🏆</div>
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
-                {winner?.firstName ?? '@WINNER'}
+                {winner?.firstName ?? '—'}
               </div>
               <div style={{ fontSize: 9, color: '#D4A017', fontWeight: 700 }}>
                 {prizePer > 0 ? `${prizePer} ETB` : 'WINNER'}
@@ -122,43 +119,49 @@ export default function WinnerPage() {
         </div>
 
         {/* Winning cartela */}
-        <div className="game-card" style={{ padding: '8px 10px', flexShrink: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-            <span style={{ fontSize: 11 }}>👑</span>
-            <span className="font-condensed" style={{ fontSize: 12, fontWeight: 700, color: '#D4A017', letterSpacing: '0.05em' }}>
-              Cartela #{winner?.cardId ?? '—'}
-            </span>
-            <span style={{ background: '#7c3aed', borderRadius: 4, padding: '1px 6px', fontSize: 8, fontWeight: 700, color: '#fff' }}>WIN</span>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, marginBottom: 3 }}>
-            {['B','I','N','G','O'].map(c => (
-              <div key={c} style={{
-                background: '#1a1a2e', borderRadius: 3,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                padding: '3px 0', fontSize: 11, fontWeight: 900, color: '#fff',
-              }}>{c}</div>
+        {cardNumbers ? (
+          <div className="game-card" style={{ padding: '8px 10px', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+              <span style={{ fontSize: 11 }}>👑</span>
+              <span className="font-condensed" style={{ fontSize: 12, fontWeight: 700, color: '#D4A017', letterSpacing: '0.05em' }}>
+                Cartela #{winner?.cardId ?? '—'}
+              </span>
+              <span style={{ background: '#7c3aed', borderRadius: 4, padding: '1px 6px', fontSize: 8, fontWeight: 700, color: '#fff' }}>WIN</span>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, marginBottom: 3 }}>
+              {['B','I','N','G','O'].map(c => (
+                <div key={c} style={{
+                  background: '#1a1a2e', borderRadius: 3,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  padding: '3px 0', fontSize: 11, fontWeight: 900, color: '#fff',
+                }}>{c}</div>
+              ))}
+            </div>
+            {cardNumbers.map((row, ri) => (
+              <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, marginBottom: 3 }}>
+                {row.map((num, ci) => {
+                  const isFree = num === 0
+                  const isWin = !isFree && winPattern.has(num)
+                  const isMatched = !isFree && (calledSet.has(num) || isWin)
+                  return (
+                    <div key={ci} className={`bingo-cell${isFree ? ' free' : (isMatched) ? ' matched' : ''}`} style={{ height: 30 }}>
+                      {isFree ? '👑' : num}
+                    </div>
+                  )
+                })}
+              </div>
             ))}
           </div>
-          {cardNumbers.map((row, ri) => (
-            <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, marginBottom: 3 }}>
-              {row.map((num, ci) => {
-                const isFree = num === 0
-                const isWin = !isFree && winPattern.has(num)
-                const isMatched = !isFree && (FALLBACK_CARD.called.has(num) || isWin)
-                return (
-                  <div key={ci} className={`bingo-cell${isFree ? ' free' : (isWin || isMatched) ? ' matched' : ''}`} style={{ height: 30 }}>
-                    {isFree ? '👑' : num}
-                  </div>
-                )
-              })}
-            </div>
-          ))}
-        </div>
+        ) : (
+          <div className="game-card" style={{ padding: '20px', textAlign: 'center', flexShrink: 0 }}>
+            <div style={{ fontSize: 13, color: '#888' }}>ካርቴላ ዳታ አልተገኘም</div>
+          </div>
+        )}
 
         {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, flexShrink: 0 }}>
           {[
-            { value: String(winnerData?.winners?.length ?? 1), label: 'WINNERS' },
+            { value: String(winnerData?.winners?.length ?? '—'), label: 'WINNERS' },
             { value: String(winner?.winPattern?.length ?? '—'), label: 'WIN PATTERN' },
             { value: prizePer > 0 ? `${prizePer}` : '—', label: 'PRIZE ETB' },
           ].map((s, i) => (

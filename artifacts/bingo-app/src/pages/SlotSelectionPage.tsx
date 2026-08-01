@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useLocation } from 'wouter'
 import { CARTELAS } from '../data/cartelas'
+import { usePlayer } from '../context/PlayerContext'
 
 // Numbers that are already taken — populated from server data at runtime
 const HIGHLIGHTED = new Set<number>([])
@@ -9,6 +10,7 @@ export default function SlotSelectionPage() {
   const [, navigate] = useLocation()
   const [selectedSlots, setSelectedSlots] = useState<number[]>([])
   const [timeLeft, setTimeLeft] = useState(31)
+  const { player } = usePlayer()
 
   // Countdown timer — auto-enter when it hits 0
   useEffect(() => {
@@ -45,6 +47,16 @@ export default function SlotSelectionPage() {
   // Render 500 numbers in rows of 8
   const numbers = Array.from({ length: 500 }, (_, i) => i + 1)
 
+  // Display name: prefer @username, fall back to first name
+  const displayName = player
+    ? (player.username ? `@${player.username}` : player.firstName)
+    : '...'
+
+  // Total playable balance = balance + playBalance
+  const totalBalance = player
+    ? (parseFloat(player.balance) + parseFloat(player.playBalance)).toFixed(2)
+    : '—'
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 30%, #2e0d10 0%, #180608 70%)' }}>
 
@@ -63,8 +75,8 @@ export default function SlotSelectionPage() {
               🪙
             </div>
             <div>
-              <div style={{ fontSize: 11, fontWeight: 700, color: '#D4A017', letterSpacing: '0.04em' }}>@MANZU9Y8</div>
-              <div style={{ fontSize: 10, color: '#999', letterSpacing: '0.02em' }}>BEHERAWI ROUND #2258</div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#D4A017', letterSpacing: '0.04em' }}>{displayName}</div>
+              <div style={{ fontSize: 10, color: '#999', letterSpacing: '0.02em' }}>BEHERAWI BINGO</div>
             </div>
           </div>
 
@@ -75,12 +87,8 @@ export default function SlotSelectionPage() {
               <span style={{ fontSize: 13, fontWeight: 700, color: '#e53e3e', fontFamily: 'monospace' }}>{formatTime(timeLeft)}</span>
             </div>
             <div className="stat-chip">
-              <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>PLAYERS</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>38</span>
-            </div>
-            <div className="stat-chip">
               <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>BALANCE</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>0</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{totalBalance}</span>
             </div>
           </div>
         </div>
@@ -143,7 +151,7 @@ export default function SlotSelectionPage() {
             borderRadius: 8, padding: '3px 10px',
             fontSize: 11, fontWeight: 700, color: '#fff'
           }}>
-            0 ETB
+            {totalBalance} ETB
           </div>
         </div>
 

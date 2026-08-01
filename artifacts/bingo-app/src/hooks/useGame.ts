@@ -60,16 +60,10 @@ function checkWin(card: number[][], calledSet: Set<number>): boolean {
   return false
 }
 
-function getGuestIdentity() {
-  let id = sessionStorage.getItem('guestId')
-  if (!id) {
-    id = String(Math.floor(Math.random() * 9_000_000) + 1_000_000)
-    sessionStorage.setItem('guestId', id)
-  }
-  return { telegramId: Number(id), firstName: 'Guest' }
-}
-
-export function useGame(selectedCardIds: number[]) {
+export function useGame(
+  selectedCardIds: number[],
+  identity: { telegramId: number; firstName: string } | null,
+) {
   const socketRef = useRef<Socket | null>(null)
   const [connected, setConnected] = useState(false)
   const [gameState, setGameState] = useState<GameState>(DEFAULT_STATE)
@@ -80,13 +74,12 @@ export function useGame(selectedCardIds: number[]) {
 
   // Refs so the socket event closures always see current values
   const selectedCardIdsRef = useRef(selectedCardIds)
+  const identityRef = useRef(identity)
   const gameStateRef = useRef<GameState>(DEFAULT_STATE)
   const claimedRoundRef = useRef<string | null>(null)
 
-  // Keep selectedCardIdsRef in sync whenever selectedCardIds changes
-  useEffect(() => {
-    selectedCardIdsRef.current = selectedCardIds
-  }, [selectedCardIds])
+  useEffect(() => { selectedCardIdsRef.current = selectedCardIds }, [selectedCardIds])
+  useEffect(() => { identityRef.current = identity }, [identity])
 
   /** Checks all player cards against calledSet; emits claim_bingo on the first win */
   function tryClaimWin(socket: Socket, calledBalls: number[], roundId: string) {
@@ -96,6 +89,7 @@ export function useGame(selectedCardIds: number[]) {
       const card = CARTELAS[cardId - 1]
       if (card && checkWin(card, calledSet)) {
         claimedRoundRef.current = roundId
+        sessionStorage.setItem('claimedRound', roundId)
         socket.emit('claim_bingo', { roundId, cardId })
         break
       }
@@ -103,8 +97,10 @@ export function useGame(selectedCardIds: number[]) {
   }
 
   useEffect(() => {
-    const { telegramId, firstName } = getGuestIdentity()
-    cardsSelectedRef.current = false
+    // Restore claimed round from sessionStorage so a refresh within the same round
+    // doesn't re-emit claim_bingo
+    const storedClaimed = sessionStorage.getItem('claimedRound')
+    if (storedClaimed) claimedRoundRef.current = storedClaimed
 
     const socket = io({
       path: '/api/socket.io',
@@ -114,7 +110,10 @@ export function useGame(selectedCardIds: number[]) {
 
     socket.on('connect', () => {
       setConnected(true)
-      socket.emit('join_room', { telegramId, firstName })
+      const id = identityRef.current
+      if (id) {
+        socket.emit('join_room', { telegramId: id.telegramId, firstName: id.firstName })
+      }
       // Select cards immediately after joining
       if (selectedCardIdsRef.current.length > 0) {
         selectedCardIdsRef.current.forEach(id => socket.emit('select_card', id))
@@ -157,8 +156,11 @@ export function useGame(selectedCardIds: number[]) {
     })
 
     socket.on('winner_declared', (data: WinnerEvent) => {
-      setWinner(data)
+      // Persist both the winner event and the final called balls so WinnerPage can
+      // correctly highlight all called cells (not just the win pattern)
       sessionStorage.setItem('winnerData', JSON.stringify(data))
+      sessionStorage.setItem('calledBalls', JSON.stringify(gameStateRef.current.calledBalls))
+      setWinner(data)
     })
 
     socket.on('round_reset', () => {
@@ -166,6 +168,7 @@ export function useGame(selectedCardIds: number[]) {
       setMyCardIds([])
       cardsSelectedRef.current = false
       claimedRoundRef.current = null
+      sessionStorage.removeItem('claimedRound')
       gameStateRef.current = DEFAULT_STATE
       setGameState(DEFAULT_STATE)
     })
