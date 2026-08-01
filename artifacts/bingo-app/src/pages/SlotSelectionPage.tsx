@@ -92,10 +92,10 @@ export default function SlotSelectionPage() {
   }, [])
 
   // ── Balance helpers ───────────────────────────────────────────────────────
-  // `balance` is the total wallet (withdrawable + play combined);
-  // `playBalance` is a subset of it, so we must NOT add them together.
+  // With the coin model, staking is paid from playBalance (coins).
+  // player.balance = ETB game winnings (withdrawable only).
   const totalBalanceNum = player
-    ? parseFloat(player.balance)
+    ? parseFloat(player.playBalance)
     : 0
 
   const canAfford = (wantCount: number) => {
@@ -174,15 +174,15 @@ export default function SlotSelectionPage() {
               letterSpacing: '0.08em', marginBottom: 10,
             }}>INSUFFICIENT BALANCE</div>
             <div style={{ fontSize: 13, color: '#aaa', lineHeight: 1.5, marginBottom: 6 }}>
-              Please deposit ETB to select more cartelas.
+              ካርቴላ ለመምረጥ ኮይን ያስፈልጋል። ዲፖዚት ያድርጉ።
             </div>
             {stakePerCard > 0 && (
               <div style={{ fontSize: 12, color: '#D4A017', fontWeight: 700, marginBottom: 20 }}>
-                Required: {stakePerCard} ETB per cartela
+                ለ 1 ካርቴላ: {stakePerCard} ኮይን ያስፈልጋል
               </div>
             )}
             <div style={{ fontSize: 12, color: '#888', marginBottom: 20 }}>
-              Your balance: <span style={{ color: '#fff', fontWeight: 700 }}>{totalBalance} ETB</span>
+              ኮይን: <span style={{ color: '#fff', fontWeight: 700 }}>🪙 {totalBalance}</span>
             </div>
             <button
               onClick={() => setShowNoBalance(false)}
@@ -252,8 +252,8 @@ export default function SlotSelectionPage() {
               </span>
             </div>
             <div className="stat-chip">
-              <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>BALANCE</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{totalBalance}</span>
+              <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>🪙 COINS</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#D4A017' }}>{totalBalance}</span>
             </div>
           </div>
         </div>
@@ -312,7 +312,7 @@ export default function SlotSelectionPage() {
             </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#D4A017', letterSpacing: '0.08em' }}>JACKPOT</span>
+            <span style={{ fontSize: 9, fontWeight: 700, color: '#D4A017', letterSpacing: '0.08em' }}>🏆 JACKPOT (ETB)</span>
             <div style={{
               background: '#1e0909', border: '1px solid #5c1a1a',
               borderRadius: 8, padding: '3px 10px',

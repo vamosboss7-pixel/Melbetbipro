@@ -226,8 +226,9 @@ router.post("/auth/telegram", async (req: Request, res: Response) => {
       if (appSettings.getBool("registerBonusEnabled")) {
         const bonusAmount = appSettings.getNum("registerBonusAmount");
         if (bonusAmount > 0) {
+          // Registration bonus goes to coins (playBalance) — not withdrawable ETB.
           await db.update(playersTable).set({
-            balance: sql`${playersTable.balance} + ${bonusAmount}`,
+            playBalance: sql`${playersTable.playBalance} + ${bonusAmount}`,
           }).where(eq(playersTable.telegramId, tgUser.id));
           await db.insert(transactionsTable).values({
             telegramId: tgUser.id,

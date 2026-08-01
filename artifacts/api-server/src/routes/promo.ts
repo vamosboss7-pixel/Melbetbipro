@@ -57,8 +57,9 @@ router.post("/promo/redeem", async (req: Request, res: Response) => {
     const bonus = Number(promo.bonusAmount);
 
     // Apply bonus, record usage, insert transaction — all in sequence
+    // Promo bonuses go to coins (playBalance) — not withdrawable ETB.
     await db.update(playersTable)
-      .set({ balance: sql`${playersTable.balance} + ${bonus}` })
+      .set({ playBalance: sql`${playersTable.playBalance} + ${bonus}` })
       .where(eq(playersTable.telegramId, telegramId));
 
     await db.update(promoCodesTable)

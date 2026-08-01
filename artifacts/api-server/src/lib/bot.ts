@@ -238,8 +238,9 @@ bot.command("start", async (ctx) => {
       if (appSettings.getBool("registerBonusEnabled")) {
         const bonusAmount = appSettings.getNum("registerBonusAmount");
         if (bonusAmount > 0) {
+          // Registration bonus goes to coins (playBalance) — not withdrawable ETB.
           await db.update(playersTable).set({
-            balance: sql`${playersTable.balance} + ${bonusAmount}`,
+            playBalance: sql`${playersTable.playBalance} + ${bonusAmount}`,
           }).where(eq(playersTable.telegramId, user.id));
           await db.insert(transactionsTable).values({
             telegramId: user.id,
@@ -568,7 +569,8 @@ async function redeemPromoCode(telegramId: number, rawCode: string): Promise<str
     .where(eq(playersTable.telegramId, telegramId)).limit(1);
   if (!playerRows.length) return "❌ አካውንት አልተገኘም። /start ይጫኑ።";
   const bonus = Number(promo.bonusAmount);
-  await db.update(playersTable).set({ balance: sql`${playersTable.balance} + ${bonus}` }).where(eq(playersTable.telegramId, telegramId));
+  // Promo bonuses go to coins (playBalance) — not withdrawable ETB.
+  await db.update(playersTable).set({ playBalance: sql`${playersTable.playBalance} + ${bonus}` }).where(eq(playersTable.telegramId, telegramId));
   await db.update(promoCodesTable).set({ usedCount: sql`${promoCodesTable.usedCount} + 1` }).where(eq(promoCodesTable.id, promo.id));
   await db.insert(promoCodeUsagesTable).values({ promoCodeId: promo.id, telegramId });
   await db.insert(transactionsTable).values({ telegramId, type: "promo_bonus", amount: `${bonus}`, status: "approved", note: `ፕሮሞ ኮድ: ${code}` });
@@ -759,7 +761,7 @@ async function handleChannelBonusCheck(ctx: any) {
   await db
     .update(playersTable)
     .set({
-      balance: sql`${playersTable.balance} + ${CHANNEL_JOIN_BONUS}`,
+      // Channel bonus goes to coins (playBalance) — not withdrawable ETB.
       playBalance: sql`${playersTable.playBalance} + ${CHANNEL_JOIN_BONUS}`,
       hasClaimedChannelBonus: true,
     })
@@ -817,16 +819,16 @@ bot.command("balance", async (ctx) => {
     if (!rows.length) { await ctx.reply("❌ አካዉንት አልተገኘም። /start ን ይጫኑ።"); return; }
     const balance = Number(rows[0]!.balance);
     const playBalance = Number(rows[0]!.playBalance);
-    const withdrawable = Math.max(balance - playBalance, 0);
     const isAgent = rows[0]!.role === "agent";
     const agentBalance = Number(rows[0]!.agentBalance);
     await ctx.reply(
-      `💳 <b>ባላንስ ዝርዝር</b>\n\n` +
-      `🏦 ዋና ዋሌት (ጠቅላላ): <b>${balance.toFixed(2)} ብር</b>\n` +
-      `🎮 Play Wallet: <b>${playBalance.toFixed(2)} ብር</b>\n` +
-      `💸 ማውጣት የሚቻል: <b>${withdrawable.toFixed(2)} ብር</b>` +
-      (isAgent ? `\n\n💼 <b>Agent Wallet: ${agentBalance.toFixed(2)} ብር</b>` : "") +
-      `\n\n📌 ዲፖዚት/ቦነስ ዊዝድሮው አይቻልም።`,
+      `💳 <b>ዋሌት ዝርዝር</b>\n\n` +
+      `🪙 <b>ኮይን (Play Wallet):</b> <b>${playBalance.toFixed(2)} ኮይን</b>\n` +
+      `   └ ዲፖዚት + ቦነሶች — ለጨዋታ ብቻ\n\n` +
+      `💰 <b>ETB (ዊዝድሮው):</b> <b>${balance.toFixed(2)} ብር</b>\n` +
+      `   └ ከጨዋታ ያሸነፉት — ማውጣት ይቻላል\n` +
+      (isAgent ? `\n💼 <b>Agent Wallet: ${agentBalance.toFixed(2)} ብር</b>\n` : "") +
+      `\n📌 ኮይን ዊዝድሮው ማድረግ አይቻልም — ETB ብቻ።`,
       { parse_mode: "HTML" }
     );
   } catch (err) {
@@ -1213,12 +1215,12 @@ bot.callbackQuery(/^approve_(\d+)$/, async (ctx) => {
     if (!rows.length || rows[0]!.status !== "pending") return ctx.answerCallbackQuery("⚠️ Already processed");
     const dep = rows[0]!;
     await db.update(pendingDepositsTable).set({ status: "approved", updatedAt: new Date() }).where(eq(pendingDepositsTable.id, depositId));
+    // Deposits go to coins (playBalance) only — ETB balance is for game winnings only.
     await db.update(playersTable).set({
-      balance: sql`${playersTable.balance} + ${dep.amount}`,
       playBalance: sql`${playersTable.playBalance} + ${dep.amount}`,
     }).where(eq(playersTable.telegramId, dep.telegramId));
     await db.insert(transactionsTable).values({ telegramId: dep.telegramId, type: "deposit", amount: dep.amount, status: "approved", note: `Deposit #${dep.id} approved` });
-    await bot.api.sendMessage(dep.telegramId, `✅ Your Deposit of <b>${Number(dep.amount).toFixed(0)} ETB</b> is Approved.\n🧾 Ref: #${dep.id}`, { parse_mode: "HTML" });
+    await bot.api.sendMessage(dep.telegramId, `✅ ዲፖዚት ተፈቅዷል!\n\n🪙 <b>${Number(dep.amount).toFixed(0)} ኮይን</b> ወደ Play Wallet ተጨምሯል!\n🧾 Ref: #${dep.id}\n\n🎱 አሁን ይጫወቱ!`, { parse_mode: "HTML" });
     await ctx.editMessageText(((ctx as any).message?.text ?? "") + "\n\n✅ <b>APPROVED</b>", { parse_mode: "HTML" });
     await ctx.answerCallbackQuery("✅ ተፈቅዷል!");
     logger.info({ depositId }, "Deposit approved");
@@ -1531,16 +1533,15 @@ bot.on("message:text", async (ctx) => {
       }
       try {
         const rows = await db.select().from(playersTable).where(eq(playersTable.telegramId, user.id)).limit(1);
+        // With the coin model, only ETB balance (game winnings) is withdrawable.
         const balance = Number(rows[0]?.balance ?? 0);
-        const playBalance = Number(rows[0]?.playBalance ?? 0);
-        const withdrawable = Math.max(balance - playBalance, 0);
-        const effectiveWithdrawable = Math.max(withdrawable - 10, 0);
+        const effectiveWithdrawable = balance;
         if (!rows.length || amount > effectiveWithdrawable) {
           await ctx.reply(
             `❌ ይህ መጠን ማውጣት አይቻልም።\n\n` +
-            `💸 ማውጣት የሚቻል: <b>${effectiveWithdrawable.toFixed(2)} ብር</b>\n` +
-            `📌 ዲፖዚት/ቦነስ ባላንስ ዊዝድሮው ማድረግ አይቻልም።\n` +
-            `📌 ከዊዝድሮው በኋላ ቢያንስ 10 ብር አካውንት ውስጥ መቅረት አለበት።`,
+            `💰 ማውጣት የሚቻል ETB: <b>${effectiveWithdrawable.toFixed(2)} ብር</b>\n` +
+            `📌 ኮይን (ዲፖዚት/ቦነስ) ዊዝድሮው ማድረግ አይቻልም።\n` +
+            `📌 ETB ማግኘት የሚቻለው ጨዋታ ካሸነፉ ብቻ ነው።`,
             { parse_mode: "HTML" }
           );
           withdrawSessions.delete(user.id);

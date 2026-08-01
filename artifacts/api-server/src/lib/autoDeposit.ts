@@ -81,8 +81,9 @@ export async function creditPlayerBalance(
   amount: number,
   note: string,
 ): Promise<void> {
+  // Deposits go to coins (playBalance) only — not to ETB balance.
+  // ETB balance is earned exclusively through game winnings.
   await db.update(playersTable).set({
-    balance: sql`${playersTable.balance} + ${amount}`,
     playBalance: sql`${playersTable.playBalance} + ${amount}`,
   }).where(eq(playersTable.telegramId, telegramId));
 

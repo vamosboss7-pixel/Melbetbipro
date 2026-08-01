@@ -257,9 +257,10 @@ export class GameEngine {
     for (const [telegramId, participant] of this.roundParticipants) {
       const stake = participant.cardIds.length * stakePerCard;
       try {
+        // Stake is deducted from coins (playBalance) only.
+        // ETB balance (game winnings) is never touched by staking.
         const rows = await db.update(playersTable)
           .set({
-            balance: sql`${playersTable.balance} - ${stake}`,
             playBalance: sql`GREATEST(${playersTable.playBalance} - ${stake}, 0)`,
           })
           .where(eq(playersTable.telegramId, telegramId))
@@ -738,11 +739,12 @@ export class GameEngine {
       // Only check balance when there's an actual stake requirement
       if (stakePerCard > 0) {
         try {
-          const rows = await db.select({ balance: playersTable.balance })
+          // Check coin balance (playBalance) — stakes are paid in coins, not ETB.
+          const rows = await db.select({ playBalance: playersTable.playBalance })
             .from(playersTable).where(eq(playersTable.telegramId, telegramId)).limit(1);
-          const balance = rows[0] ? Number(rows[0].balance) : 0;
+          const balance = rows[0] ? Number(rows[0].playBalance) : 0;
           if (balance < stakePerCard) {
-            const msg = `ጨዋታ ለመቀላቀል ቢያንስ ${stakePerCard} ብር ያስፈልጋል። አሁን ያለዎ ባላንስ: ${balance.toFixed(2)} ብር`;
+            const msg = `ጨዋታ ለመቀላቀል ቢያንስ ${stakePerCard} ኮይን ያስፈልጋል። አሁን ያለዎ ኮይን: ${balance.toFixed(2)}`;
             socket.emit("join_error", { message: msg });
             logger.info({ telegramId, balance, stakePerCard, namespace: this.roomCfg.namespace ?? "/" }, "join_error: insufficient balance");
             return;
@@ -848,16 +850,17 @@ export class GameEngine {
     // Only check balance when there's an actual stake requirement
     if (stakePerCard > 0) {
       try {
+        // Check coin balance (playBalance) — stakes are paid in coins, not ETB.
         const rows = await db
-          .select({ balance: playersTable.balance })
+          .select({ playBalance: playersTable.playBalance })
           .from(playersTable)
           .where(eq(playersTable.telegramId, player.telegramId))
           .limit(1);
 
-        const balance = rows[0] ? Number(rows[0].balance) : 0;
+        const balance = rows[0] ? Number(rows[0].playBalance) : 0;
         if (balance < neededStake) {
           socket.emit("select_card_error", {
-            message: `ካርድ ለመምረጥ ቢያንስ ${neededStake} ብር ያስፈልጋል። የአሁን ባላንስ: ${balance.toFixed(2)} ብር`,
+            message: `ካርድ ለመምረጥ ቢያንስ ${neededStake} ኮይን ያስፈልጋል። የአሁን ኮይን: ${balance.toFixed(2)}`,
             balance: balance.toFixed(2),
           });
           return;

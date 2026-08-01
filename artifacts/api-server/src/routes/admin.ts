@@ -249,13 +249,13 @@ router.post("/admin/deposit/:id/approve", async (req: Request, res: Response) =>
     if (!rows.length || rows[0]!.status !== "pending") { res.status(400).json({ error: "Not found or already processed" }); return; }
     const dep = rows[0]!;
     await db.update(pendingDepositsTable).set({ status: "approved", updatedAt: new Date() }).where(eq(pendingDepositsTable.id, depositId));
+    // Deposits go to coins (playBalance) only — ETB balance is for game winnings only.
     await db.update(playersTable).set({
-      balance: sql`${playersTable.balance} + ${dep.amount}`,
       playBalance: sql`${playersTable.playBalance} + ${dep.amount}`,
     }).where(eq(playersTable.telegramId, dep.telegramId));
     await db.insert(transactionsTable).values({ telegramId: dep.telegramId, type: "deposit", amount: dep.amount, status: "approved", note: `Deposit #${dep.id} approved` });
     try {
-      await bot.api.sendMessage(dep.telegramId, `✅ Your Deposit of <b>${Number(dep.amount).toFixed(0)} ETB</b> is Approved.\n🧾 Ref: #${dep.id}`, { parse_mode: "HTML" });
+      await bot.api.sendMessage(dep.telegramId, `✅ ዲፖዚት ተፈቅዷል!\n\n🪙 <b>${Number(dep.amount).toFixed(0)} ኮይን</b> ወደ Play Wallet ተጨምሯል!\n🧾 Ref: #${dep.id}\n\n🎱 አሁን ይጫወቱ!`, { parse_mode: "HTML" });
     } catch (e) { logger.warn({ e }, "Failed to notify user"); }
     logger.info({ depositId }, "Deposit approved via admin panel");
     void grantInviteBonus(dep.telegramId, Number(dep.amount));
