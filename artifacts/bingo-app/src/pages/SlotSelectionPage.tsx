@@ -1,8 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation } from 'wouter'
 import { CARTELAS } from '../data/cartelas'
 
-// Numbers 1-500, some highlighted as drawn
+// Numbers that are already taken (highlighted/drawn) — cannot be selected
 const HIGHLIGHTED = new Set([146, 147, 153, 158, 160, 168, 174, 180, 23, 45, 67, 89, 112, 134, 200, 215, 230, 250, 278, 310, 340, 360, 390, 420, 450, 480])
 
 export default function SlotSelectionPage() {
@@ -10,7 +10,18 @@ export default function SlotSelectionPage() {
   const [selectedSlots, setSelectedSlots] = useState<number[]>([])
   const [timeLeft, setTimeLeft] = useState(31)
 
+  // Countdown timer — auto-enter when it hits 0
+  useEffect(() => {
+    if (timeLeft <= 0) {
+      enterGame()
+      return
+    }
+    const id = setInterval(() => setTimeLeft(t => t - 1), 1000)
+    return () => clearInterval(id)
+  }, [timeLeft])
+
   const toggleSlot = (n: number) => {
+    if (HIGHLIGHTED.has(n)) return  // taken slots are not selectable
     setSelectedSlots(prev => {
       if (prev.includes(n)) return prev.filter(x => x !== n)
       if (prev.length >= 2) return prev
@@ -26,7 +37,16 @@ export default function SlotSelectionPage() {
 
   const clearSlots = () => setSelectedSlots([])
 
-  const formatTime = (s: number) => `00:${String(s).padStart(2, '0')}`
+  const enterGame = () => {
+    const slots = selectedSlots.length > 0 ? selectedSlots : (() => {
+      const available = Array.from({ length: 500 }, (_, i) => i + 1).filter(n => !HIGHLIGHTED.has(n))
+      return available.sort(() => Math.random() - 0.5).slice(0, 2)
+    })()
+    sessionStorage.setItem('selectedSlots', JSON.stringify(slots))
+    navigate('/game')
+  }
+
+  const formatTime = (s: number) => `00:${String(Math.max(0, s)).padStart(2, '0')}`
 
   // Render 500 numbers in rows of 8
   const numbers = Array.from({ length: 500 }, (_, i) => i + 1)
@@ -90,18 +110,23 @@ export default function SlotSelectionPage() {
 
         {/* Number Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 5 }}>
-          {numbers.map(n => (
-            <div
-              key={n}
-              className={`slot-cell${HIGHLIGHTED.has(n) ? ' highlighted' : ''}${selectedSlots.includes(n) ? ' highlighted' : ''}`}
-              onClick={() => toggleSlot(n)}
-              style={{
-                ...(selectedSlots.includes(n) ? { background: '#4a1a00', boxShadow: '0 0 8px rgba(255,140,0,0.5)' } : {}),
-              }}
-            >
-              {n}
-            </div>
-          ))}
+          {numbers.map(n => {
+            const isTaken = HIGHLIGHTED.has(n)
+            const isSelected = selectedSlots.includes(n)
+            return (
+              <div
+                key={n}
+                className={`slot-cell${isTaken ? ' highlighted' : ''}${isSelected ? ' highlighted' : ''}`}
+                onClick={() => toggleSlot(n)}
+                style={{
+                  ...(isSelected ? { background: '#4a1a00', boxShadow: '0 0 8px rgba(255,140,0,0.5)' } : {}),
+                  ...(isTaken ? { cursor: 'not-allowed', opacity: 0.5 } : {}),
+                }}
+              >
+                {n}
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -139,7 +164,7 @@ export default function SlotSelectionPage() {
               key={i}
               className="cartela-placeholder"
               style={{ padding: card ? '8px 6px' : '18px 10px', minHeight: 100 }}
-              onClick={autoAssign}
+              onClick={() => { if (!card) autoAssign() }}
             >
               {card ? (
                 <div style={{ width: '100%' }}>
@@ -199,7 +224,7 @@ export default function SlotSelectionPage() {
         <div style={{ display: 'flex', gap: 10, paddingBottom: 20 }}>
           <button
             className="btn-enter"
-            onClick={() => { autoAssign(); navigate('/game'); }}
+            onClick={enterGame}
             style={{
               flex: 1, padding: '13px 0',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
@@ -207,7 +232,9 @@ export default function SlotSelectionPage() {
             }}
           >
             <span style={{ fontSize: 14 }}>🎲</span>
-            <span className="font-condensed" style={{ letterSpacing: '0.1em', fontSize: 17, fontWeight: 700 }}>AUTO ASSIGN</span>
+            <span className="font-condensed" style={{ letterSpacing: '0.1em', fontSize: 17, fontWeight: 700 }}>
+              {selectedSlots.length > 0 ? 'ENTER GAME' : 'AUTO ASSIGN'}
+            </span>
           </button>
           <button
             onClick={clearSlots}

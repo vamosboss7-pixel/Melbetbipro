@@ -1,15 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useLocation } from 'wouter'
+import { CARTELAS } from '../data/cartelas'
 
 // 75-ball matrix columns
 const BINGO_COLS = ['B', 'I', 'N', 'G', 'O'] as const
-const COL_COLORS: Record<string, string> = {
-  B: '#1a1a1a',
-  I: '#1a1a1a',
-  N: '#1a1a1a',
-  G: '#1a1a1a',
-  O: '#1a1a1a',
-}
 const COL_RANGES: Record<string, [number, number]> = {
   B: [1, 15], I: [16, 30], N: [31, 45], G: [46, 60], O: [61, 75],
 }
@@ -38,11 +32,43 @@ const COL_BADGE_COLORS: Record<string, string> = {
   B: '#1565c0', I: '#6a0dad', N: '#b71c1c', G: '#e65100', O: '#880e4f',
 }
 
+const COL_COLORS: Record<string, string> = {
+  B: '#1a1a1a', I: '#1a1a1a', N: '#1a1a1a', G: '#1a1a1a', O: '#1a1a1a',
+}
+
 export default function GamePage() {
   const [, navigate] = useLocation()
   const [phase, setPhase] = useState<'waiting' | 'active'>('active')
+  const [muted, setMuted] = useState(false)
+  const audioRef = useRef<HTMLAudioElement | null>(null)
+
+  // Read selected slots from sessionStorage
+  const [selectedSlots] = useState<number[]>(() => {
+    try {
+      const stored = sessionStorage.getItem('selectedSlots')
+      return stored ? JSON.parse(stored) : []
+    } catch {
+      return []
+    }
+  })
+
+  // Audio setup
+  useEffect(() => {
+    const audio = new Audio('/audio/bg-music.mp3')
+    audio.loop = true
+    audio.volume = 0.4
+    audioRef.current = audio
+    audio.play().catch(() => { /* autoplay may be blocked */ })
+    return () => { audio.pause(); audio.src = '' }
+  }, [])
+
+  // Mute/unmute
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.muted = muted
+  }, [muted])
 
   const calledSet = new Set(CALLED_BALLS)
+  const COLS = ['B', 'I', 'N', 'G', 'O']
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 25%, #2e0d10 0%, #180608 70%)', overflow: 'hidden' }}>
@@ -71,7 +97,13 @@ export default function GamePage() {
             <StatChip label="CALLED" value={phase === 'waiting' ? '0/75' : '7/75'} />
             <StatChip label="BALANC..." value="0" />
             <StatChip label="PRIZE P..." value="656" accent="#D4A017" />
-            <button style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#888', fontSize: 16, padding: '2px 4px' }}>🔊</button>
+            <button
+              onClick={() => setMuted(m => !m)}
+              title={muted ? 'Unmute' : 'Mute'}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: muted ? '#e53e3e' : '#888', fontSize: 16, padding: '2px 4px' }}
+            >
+              {muted ? '🔇' : '🔊'}
+            </button>
           </div>
         </div>
       </div>
@@ -139,28 +171,85 @@ export default function GamePage() {
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
               <span style={{ fontSize: 12 }}>🎴</span>
               <span className="font-condensed" style={{ fontSize: 11, fontWeight: 700, color: '#D4A017', letterSpacing: '0.04em' }}>
-                YOUR CARTELAS (0)
+                YOUR CARTELAS ({selectedSlots.length})
               </span>
-              <span style={{
-                background: '#166534', border: '1px solid #22c55e',
-                borderRadius: 4, padding: '1px 6px',
-                fontSize: 9, fontWeight: 700, color: '#22c55e', letterSpacing: '0.04em'
-              }}>IN PLAY</span>
+              {selectedSlots.length > 0 && (
+                <span style={{
+                  background: '#166534', border: '1px solid #22c55e',
+                  borderRadius: 4, padding: '1px 6px',
+                  fontSize: 9, fontWeight: 700, color: '#22c55e', letterSpacing: '0.04em'
+                }}>IN PLAY</span>
+              )}
             </div>
 
-            {/* Empty state */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 8 }}>
-              <svg width="38" height="32" viewBox="0 0 56 46" fill="none">
-                <path d="M4 38 L10 14 L20 26 L28 6 L36 26 L46 14 L52 38 Z" fill="none" stroke="#5c1a1a" strokeWidth="2" strokeLinejoin="round"/>
-                <rect x="2" y="38" width="52" height="6" rx="2" fill="#5c1a1a" />
-              </svg>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#D4A017', lineHeight: 1.4 }}>
-                እባክዎን ዙሩ<br />እስኪጠናቀቅ ድረስ<br />ይጠብቁ
+            {selectedSlots.length === 0 ? (
+              /* Empty state */
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 8 }}>
+                <svg width="38" height="32" viewBox="0 0 56 46" fill="none">
+                  <path d="M4 38 L10 14 L20 26 L28 6 L36 26 L46 14 L52 38 Z" fill="none" stroke="#5c1a1a" strokeWidth="2" strokeLinejoin="round"/>
+                  <rect x="2" y="38" width="52" height="6" rx="2" fill="#5c1a1a" />
+                </svg>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#D4A017', lineHeight: 1.4 }}>
+                  እባክዎን ዙሩ<br />እስኪጠናቀቅ ድረስ<br />ይጠብቁ
+                </div>
+                <div style={{ fontSize: 10, color: '#888', lineHeight: 1.5 }}>
+                  ጨዋታዎ እንዲሳቅ የሚቀጠለወን ዙሩ<br />መጫወት ይችላሉ።
+                </div>
               </div>
-              <div style={{ fontSize: 10, color: '#888', lineHeight: 1.5 }}>
-                ጨዋታዎ እንዲሳቅ የሚቀጠለወን ዙሩ<br />መጫወት ይችላሉ።
+            ) : (
+              /* Show selected cartelas */
+              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {selectedSlots.map((slotNum, idx) => {
+                  const card = CARTELAS[slotNum - 1]
+                  if (!card) return null
+                  return (
+                    <div key={slotNum} style={{ flexShrink: 0 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: '#888', letterSpacing: '0.04em' }}>CARTELA {idx + 1}</span>
+                        <span style={{ fontSize: 10, fontWeight: 800, color: '#D4A017' }}>#{slotNum}</span>
+                      </div>
+                      {/* Column headers */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, marginBottom: 2 }}>
+                        {COLS.map(c => (
+                          <div key={c} style={{
+                            textAlign: 'center', fontSize: 8, fontWeight: 800,
+                            color: '#D4A017', letterSpacing: '0.04em',
+                          }}>{c}</div>
+                        ))}
+                      </div>
+                      {/* 5x5 grid */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2 }}>
+                        {card.map((row, r) =>
+                          row.map((num, c) => {
+                            const isFree = num === 0
+                            const isCalled = !isFree && calledSet.has(num)
+                            return (
+                              <div key={`${r}-${c}`} style={{
+                                aspectRatio: '1',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                borderRadius: 3,
+                                background: isFree
+                                  ? 'linear-gradient(135deg,#c0392b,#ff6b00)'
+                                  : isCalled
+                                  ? 'linear-gradient(135deg,#166534,#22c55e)'
+                                  : '#1e0909',
+                                border: (isFree || isCalled) ? 'none' : '1px solid #3a1212',
+                                fontSize: isFree ? 9 : 7,
+                                fontWeight: 700,
+                                color: '#fff',
+                                lineHeight: 1,
+                              }}>
+                                {isFree ? '★' : num}
+                              </div>
+                            )
+                          })
+                        )}
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
-            </div>
+            )}
           </div>
         </div>
 

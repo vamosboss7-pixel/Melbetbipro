@@ -23,14 +23,25 @@ const CONFETTI = Array.from({ length: 28 }, (_, i) => ({
   duration: `${2.5 + Math.random() * 2}s`,
 }))
 
+const TOTAL_COUNTDOWN = 5
+
 export default function WinnerPage() {
   const [, navigate] = useLocation()
-  const [countdown, setCountdown] = useState(5)
+  const [countdown, setCountdown] = useState(TOTAL_COUNTDOWN)
 
   useEffect(() => {
-    const t = setInterval(() => setCountdown(c => (c > 0 ? c - 1 : 0)), 1000)
+    const t = setInterval(() => {
+      setCountdown(c => {
+        if (c <= 1) {
+          clearInterval(t)
+          navigate('/')
+          return 0
+        }
+        return c - 1
+      })
+    }, 1000)
     return () => clearInterval(t)
-  }, [])
+  }, [navigate])
 
   return (
     <div style={{
@@ -169,7 +180,7 @@ export default function WinnerPage() {
           </span>
         </div>
         <div style={{ height: 6, background: '#2a0e0e', borderRadius: 4, overflow: 'hidden', marginBottom: 20 }}>
-          <div className="progress-fill" style={{ width: `${(countdown / 5) * 100}%` }} />
+          <div className="progress-fill" style={{ width: `${(countdown / TOTAL_COUNTDOWN) * 100}%` }} />
         </div>
 
         {/* Back to lobby */}
