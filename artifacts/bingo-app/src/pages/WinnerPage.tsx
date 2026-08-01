@@ -70,7 +70,7 @@ export default function WinnerPage() {
   useEffect(() => {
     const t = setInterval(() => {
       setCountdown(c => {
-        if (c <= 1) { clearInterval(t); navigate('/'); return 0 }
+        if (c <= 1) { clearInterval(t); navigate('/slots'); return 0 }
         return c - 1
       })
     }, 1000)
@@ -330,7 +330,7 @@ export default function WinnerPage() {
         {/* ── Back button ── */}
         <button
           className="btn-enter"
-          onClick={() => navigate('/')}
+          onClick={() => navigate('/slots')}
           style={{ width: '100%', padding: '13px 0', border: 'none', cursor: 'pointer' }}
         >
           <span style={{ fontFamily: 'Oswald, sans-serif', letterSpacing: '0.12em', fontSize: 16, fontWeight: 800 }}>
