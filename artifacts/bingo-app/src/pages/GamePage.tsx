@@ -260,33 +260,33 @@ export default function GamePage() {
 
         {/* Right: 75-Ball Matrix */}
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div className="game-card" style={{ flex: 1, padding: '8px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
-              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <div className="game-card" style={{ flex: 1, padding: '6px 5px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+              <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
                 <rect x="0.5" y="0.5" width="4" height="4" rx="0.5" stroke="#D4A017" strokeWidth="1"/>
                 <rect x="7.5" y="0.5" width="4" height="4" rx="0.5" stroke="#D4A017" strokeWidth="1"/>
                 <rect x="0.5" y="7.5" width="4" height="4" rx="0.5" stroke="#D4A017" strokeWidth="1"/>
                 <rect x="7.5" y="7.5" width="4" height="4" rx="0.5" stroke="#D4A017" strokeWidth="1"/>
               </svg>
-              <span className="font-condensed" style={{ fontSize: 11, fontWeight: 700, color: '#D4A017', letterSpacing: '0.04em' }}>
+              <span className="font-condensed" style={{ fontSize: 10, fontWeight: 700, color: '#D4A017', letterSpacing: '0.04em' }}>
                 75-BALL MATRIX
               </span>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, marginBottom: 2 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, marginBottom: 1 }}>
               {BINGO_COLS.map(col => (
                 <div key={col} style={{
                   background: COL_BADGE_COLORS[col],
-                  borderRadius: 3,
+                  borderRadius: 2,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '3px 0', fontSize: 11, fontWeight: 900, color: '#fff',
+                  padding: '2px 0', fontSize: 10, fontWeight: 900, color: '#fff',
                 }}>{col}</div>
               ))}
             </div>
 
-            <div style={{ flex: 1, overflow: 'hidden', display: 'grid', gridTemplateRows: 'repeat(15, 1fr)', gap: 2 }}>
+            <div style={{ flex: 1, overflow: 'hidden', display: 'grid', gridTemplateRows: 'repeat(15, 1fr)', gap: 1 }}>
               {Array.from({ length: 15 }, (_, row) => (
-                <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2 }}>
+                <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 1, minWidth: 0 }}>
                   {BINGO_COLS.map(col => {
                     const num = getMatrixCell(col, row + 1)
                     const isCalled = calledSet.has(num)
@@ -295,7 +295,7 @@ export default function GamePage() {
                       <div
                         key={col}
                         className={`ball-cell${isCalled ? (isLatest ? ' latest' : ' called') : ''}`}
-                        style={{ fontSize: 10 }}
+                        style={{ fontSize: 9, minWidth: 0 }}
                       >{num}</div>
                     )
                   })}
