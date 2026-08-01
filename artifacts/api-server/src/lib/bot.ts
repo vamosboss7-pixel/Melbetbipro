@@ -436,10 +436,8 @@ bot.callbackQuery(/^cmd_deposit_(\d+)$/, async (ctx) => {
   const userId = Number(ctx.match[1]);
   if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
   await ctx.answerCallbackQuery();
+  clearAllSessions(userId);
   depositSessions.set(userId, { step: "amount", amount: 0 });
-  withdrawSessions.delete(userId);
-  promoSessions.delete(userId);
-  transferSessions.delete(userId);
   await ctx.reply(`ማስገባት የሚፈልጉትን መጠን ከ10 ብር ጀምሮ ያስገቡ`);
 });
 
@@ -466,7 +464,7 @@ bot.callbackQuery(/^cmd_withdraw_(\d+)$/, async (ctx) => {
       );
       return;
     }
-    depositSessions.delete(userId);
+    clearAllSessions(userId);
     withdrawSessions.set(userId, { step: "amount", amount: 0, phone: "", accountName: "" });
     await ctx.reply(
       `💸 ማውጣት የሚፈልጉትን መጠን ያስጊቡ:\n\n` +
@@ -585,9 +583,8 @@ bot.command("promo", async (ctx) => {
   const arg = ctx.match?.trim() ?? "";
   if (!arg) {
     // No code given — start the session flow
+    clearAllSessions(user.id);
     promoSessions.add(user.id);
-    depositSessions.delete(user.id);
-    withdrawSessions.delete(user.id);
     await ctx.reply(`🎟 <b>ፕሮሞ ኮድ ያስገቡ:</b>\n\n<i>ኮዱን ጽፈው ይላኩ — ወይም /promo CODE ብለው ቀጥታ ያስጊቡ</i>`, { parse_mode: "HTML" });
     return;
   }
@@ -605,9 +602,8 @@ bot.callbackQuery(/^cmd_promo_(\d+)$/, async (ctx) => {
   const userId = Number(ctx.match[1]);
   if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
   await ctx.answerCallbackQuery();
+  clearAllSessions(userId);
   promoSessions.add(userId);
-  depositSessions.delete(userId);
-  withdrawSessions.delete(userId);
   await ctx.reply(`🎟 <b>ፕሮሞ ኮድ ያስገቡ:</b>\n\n<i>ኮዱን ጽፈው ይላኩ — ወይም /promo CODE ብለው ቀጥታ ያስጊቡ</i>`, { parse_mode: "HTML" });
 });
 
@@ -646,11 +642,8 @@ bot.callbackQuery(/^cmd_admin_(\d+)$/, async (ctx) => {
     return ctx.answerCallbackQuery({ text: "❌ አልተፈቀደም", show_alert: true });
   }
   await ctx.answerCallbackQuery();
+  clearAllSessions(userId);
   adminPasswordSessions.add(userId);
-  depositSessions.delete(userId);
-  withdrawSessions.delete(userId);
-  promoSessions.delete(userId);
-  supportSessions.delete(userId);
   await ctx.reply(
     `🔐 <b>Admin Panel</b>\n\nፓስወርድ ያስገቡ:`,
     { parse_mode: "HTML" }
@@ -691,14 +684,24 @@ bot.callbackQuery(/^cmd_noplay_(\d+)$/, async (ctx) => {
 // Simple peer-to-peer balance transfer via Telegram username or ID
 const transferSessions = new Map<number, { step: "target" | "amount"; target: string; targetId: number }>();
 
+// ── Session helper ─────────────────────────────────────────────────────────────
+// Call this before starting ANY new session so stale sessions from other flows
+// can never intercept the user's next message.
+function clearAllSessions(userId: number): void {
+  depositSessions.delete(userId);
+  withdrawSessions.delete(userId);
+  promoSessions.delete(userId);
+  adminPasswordSessions.delete(userId);
+  supportSessions.delete(userId);
+  transferSessions.delete(userId);
+}
+
 bot.callbackQuery(/^cmd_transfer_(\d+)$/, async (ctx) => {
   const userId = Number(ctx.match[1]);
   if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
   await ctx.answerCallbackQuery();
+  clearAllSessions(userId);
   transferSessions.set(userId, { step: "target", target: "", targetId: 0 });
-  depositSessions.delete(userId);
-  withdrawSessions.delete(userId);
-  promoSessions.delete(userId);
   await ctx.reply(
     `🔄 <b>ቶከን ማስተላለፍ</b>\n\n` +
     `🔄 ባላንስ ሊያስተላልፉለት የሚፈልጉትን ተጫዋቸ @username ወይም Telegram ID ያስገቡ ።`,
@@ -867,10 +870,8 @@ bot.command("agentbalance", async (ctx) => {
 bot.command("deposit", async (ctx) => {
   const user = ctx.from;
   if (!user) return;
+  clearAllSessions(user.id);
   depositSessions.set(user.id, { step: "amount", amount: 0 });
-  withdrawSessions.delete(user.id);
-  promoSessions.delete(user.id);
-  transferSessions.delete(user.id);
   await ctx.reply(`ማስገባት የሚፈልጉትን መጠን ከ10 ብር ጀምሮ ያስገቡ`);
 });
 
@@ -898,7 +899,7 @@ bot.command("withdraw", async (ctx) => {
       );
       return;
     }
-    depositSessions.delete(user.id);
+    clearAllSessions(user.id);
     withdrawSessions.set(user.id, { step: "amount", amount: 0, phone: "", accountName: "" });
     await ctx.reply(
       `💸 ማውጣት የሚፈልጉትን መጠን ያስጊቡ:\n\n` +
