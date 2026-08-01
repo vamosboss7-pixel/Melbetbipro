@@ -734,19 +734,22 @@ export class GameEngine {
 
     const isReturningPlayer = this.persistentCards.has(telegramId) || this.roundParticipants.has(telegramId);
     if (this.phase === "waiting" && !isReturningPlayer) {
-      try {
-        const stakePerCard = this.cfgStakePerCard();
-        const rows = await db.select({ balance: playersTable.balance })
-          .from(playersTable).where(eq(playersTable.telegramId, telegramId)).limit(1);
-        const balance = rows[0] ? Number(rows[0].balance) : 0;
-        if (balance < stakePerCard) {
-          const msg = `ጨዋታ ለመቀላቀል ቢያንስ ${stakePerCard} ብር ያስፈልጋል። አሁን ያለዎ ባላንስ: ${balance.toFixed(2)} ብር`;
-          socket.emit("join_error", { message: msg });
-          logger.info({ telegramId, balance, stakePerCard, namespace: this.roomCfg.namespace ?? "/" }, "join_error: insufficient balance");
-          return;
+      const stakePerCard = this.cfgStakePerCard();
+      // Only check balance when there's an actual stake requirement
+      if (stakePerCard > 0) {
+        try {
+          const rows = await db.select({ balance: playersTable.balance })
+            .from(playersTable).where(eq(playersTable.telegramId, telegramId)).limit(1);
+          const balance = rows[0] ? Number(rows[0].balance) : 0;
+          if (balance < stakePerCard) {
+            const msg = `ጨዋታ ለመቀላቀል ቢያንስ ${stakePerCard} ብር ያስፈልጋል። አሁን ያለዎ ባላንስ: ${balance.toFixed(2)} ብር`;
+            socket.emit("join_error", { message: msg });
+            logger.info({ telegramId, balance, stakePerCard, namespace: this.roomCfg.namespace ?? "/" }, "join_error: insufficient balance");
+            return;
+          }
+        } catch (err) {
+          logger.error({ err, telegramId }, "Failed to check balance for bingo join");
         }
-      } catch (err) {
-        logger.error({ err, telegramId }, "Failed to check balance for bingo join");
       }
     }
 
@@ -842,25 +845,28 @@ export class GameEngine {
 
     const stakePerCard = this.cfgStakePerCard();
     const neededStake = (player.cardIds.length + 1) * stakePerCard;
-    try {
-      const rows = await db
-        .select({ balance: playersTable.balance })
-        .from(playersTable)
-        .where(eq(playersTable.telegramId, player.telegramId))
-        .limit(1);
+    // Only check balance when there's an actual stake requirement
+    if (stakePerCard > 0) {
+      try {
+        const rows = await db
+          .select({ balance: playersTable.balance })
+          .from(playersTable)
+          .where(eq(playersTable.telegramId, player.telegramId))
+          .limit(1);
 
-      const balance = rows[0] ? Number(rows[0].balance) : 0;
-      if (balance < neededStake) {
-        socket.emit("select_card_error", {
-          message: `ካርድ ለመምረጥ ቢያንስ ${neededStake} ብር ያስፈልጋል። የአሁን ባላንስ: ${balance.toFixed(2)} ብር`,
-          balance: balance.toFixed(2),
-        });
+        const balance = rows[0] ? Number(rows[0].balance) : 0;
+        if (balance < neededStake) {
+          socket.emit("select_card_error", {
+            message: `ካርድ ለመምረጥ ቢያንስ ${neededStake} ብር ያስፈልጋል። የአሁን ባላንስ: ${balance.toFixed(2)} ብር`,
+            balance: balance.toFixed(2),
+          });
+          return;
+        }
+      } catch (err) {
+        logger.error({ err, telegramId: player.telegramId }, "Failed to check balance for card selection");
+        socket.emit("select_card_error", { message: "ስህተት ተፈጥሯል። እንደገና ይሞክሩ።", balance: "0" });
         return;
       }
-    } catch (err) {
-      logger.error({ err, telegramId: player.telegramId }, "Failed to check balance for card selection");
-      socket.emit("select_card_error", { message: "ስህተት ተፈጥሯል። እንደገና ይሞክሩ።", balance: "0" });
-      return;
     }
 
     // Re-check atomically after the async boundary. Two concurrent requests can
