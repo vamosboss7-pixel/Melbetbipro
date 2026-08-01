@@ -314,7 +314,7 @@ bot.command("start", async (ctx) => {
 
   // Full welcome text (for plain text messages — up to 4096 chars)
   const welcomeText =
-    `🎱 <b>እንኳን ወደ Melkam Bingo መጡ!</b>\n\n` +
+    `🎱 <b>እንኳን ወደ Melbet BINGO መጡ!</b>\n\n` +
     `🎮 <b>ለጀማሪዎች — እንዴት ይጀምሩ?</b>\n` +
     `1️⃣ <b>📝 Register</b> — አካዉንት ይክፈቱ\n` +
     `2️⃣ <b>💳 Deposit</b> — ከ10ብር ጀምሮ ያስገቡ\n` +
@@ -331,7 +331,7 @@ bot.command("start", async (ctx) => {
 
   // Short caption for photo messages (Telegram limit: 1024 chars)
   const welcomeCaption =
-    `🎱 <b>እንኳን ወደ Melkam Bingo መጡ!</b>\n\n` +
+    `🎱 <b>እንኳን ወደ Melbet BINGO መጡ!</b>\n\n` +
     `1️⃣ 📝 Register — አካዉንት ይክፈቱ\n` +
     `2️⃣ 💳 Deposit — ከ10ብር ጀምሮ ያስገቡ\n` +
     `3️⃣ 🎮 Play — ጨዋታ ይጀምሩ!\n\n` +
@@ -399,7 +399,7 @@ bot.command("start", async (ctx) => {
         ],
       ];
       await ctx.reply(
-        `🎱 <b>እንኳን ወደ Melkam Bingo መጡ!</b>\n\n👇 ቁልፍ ይምረጡ`,
+        `🎱 <b>እንኳን ወደ Melbet BINGO መጡ!</b>\n\n👇 ቁልፍ ይምረጡ`,
         { parse_mode: "HTML", reply_markup: { inline_keyboard: fallbackKb } }
       );
     } catch { /* non-fatal */ }
@@ -512,12 +512,14 @@ bot.callbackQuery(/^cmd_invite_(\d+)$/, async (ctx) => {
   const botUsername = await getBotUsername();
   if (!botUsername) { await ctx.reply("❌ ሊንክ ማምጣት አልተቻለም።"); return; }
   const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
-  const percent = appSettings.getNum("inviteBonusPercent");
-  await ctx.reply(
-    `🔗 <b>የመጋበዣ ሊንክዎ:</b>\n<code>${inviteLink}</code>\n\n` +
-    `👥ጓደኞችዎ ሊንኩን ተጠቅመው ሲመዘገቡ ላይፍታይም <b>${percent}%</b> ቦነስ ዲፖዚት ባደረጉ ቁጥር ያገኛሉ!`,
-    { parse_mode: "HTML" }
-  );
+  const firstName = ctx.from.first_name ?? "ወዳጆ";
+  const shareText = `🎁 ${firstName} ወደ Melbet BINGO ጋበዙዎ እና ሸልማቶቹን ያጎኑ!\n\n${inviteLink}`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`🎁 ${firstName} ወደ Melbet BINGO ጋበዙዎ እና ሸልማቶቹን ያጎኑ!`)}`;
+  await ctx.reply(shareText, {
+    reply_markup: {
+      inline_keyboard: [[{ text: "🔗 ሊንኩን ላክ (Share Link)", url: shareUrl }]],
+    },
+  });
 });
 
 // ── Register button ────────────────────────────────────────────────────────────
@@ -764,12 +766,14 @@ bot.command("invite", async (ctx) => {
     return;
   }
   const inviteLink = `https://t.me/${botUsername}?start=ref_${user.id}`;
-  const percent = appSettings.getNum("inviteBonusPercent");
-  await ctx.reply(
-    `🔗 <b>የመጋበዣ ሊንክዎ:</b>\n<code>${inviteLink}</code>\n\n` +
-    `👥ጓደኞችዎ ሊንኩን ተጠቅመው ሲመዘገቡ ላይፍታይም <b>${percent}%</b> ቦነስ ዲፖዚት ባደረጉ ቁጥር ያገኛሉ!`,
-    { parse_mode: "HTML" }
-  );
+  const firstName = user.first_name ?? "ወዳጆ";
+  const shareText = `🎁 ${firstName} ወደ Melbet BINGO ጋበዙዎ እና ሸልማቶቹን ያጎኑ!\n\n${inviteLink}`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`🎁 ${firstName} ወደ Melbet BINGO ጋበዙዎ እና ሸልማቶቹን ያጎኑ!`)}`;
+  await ctx.reply(shareText, {
+    reply_markup: {
+      inline_keyboard: [[{ text: "🔗 ሊንኩን ላክ (Share Link)", url: shareUrl }]],
+    },
+  });
 });
 
 // ── /balance ──────────────────────────────────────────────────────────────────
