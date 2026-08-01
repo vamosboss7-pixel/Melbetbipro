@@ -41,6 +41,7 @@ const _botDomain = (
 export const USE_POLLING = !_botDomain || _botDomain.includes("riker.replit.dev") || _botDomain.includes(".replit.dev");
 
 const ADMIN_ID = 8228419622;
+const MAIN_ADMIN_TELEGRAM_ID = Number(process.env["MAIN_ADMIN_TELEGRAM_ID"] ?? "0");
 const CHANNEL_ID = process.env["ANNOUNCEMENT_CHANNEL_ID"] ?? "";
 const LUCKY_BOX_CHANNEL_ID = process.env["LUCKY_BOX_CHANNEL_ID"] ?? CHANNEL_ID;
 const BONUS_CHANNEL_USERNAME = process.env["BONUS_CHANNEL_USERNAME"] ?? "@melkameBingoAgents";
@@ -143,6 +144,7 @@ type WithdrawStep = "amount" | "phone" | "accountName";
 const depositSessions = new Map<number, { step: DepositStep; amount: number }>();
 const withdrawSessions = new Map<number, { step: WithdrawStep; amount: number; phone: string; accountName: string }>();
 const promoSessions = new Set<number>(); // waiting for promo code input
+const adminPasswordSessions = new Set<number>(); // waiting for admin password input
 
 // Support ticket system
 // supportSessions: users who clicked Support and are about to type their message
@@ -304,6 +306,10 @@ bot.command("start", async (ctx) => {
     [
       { text: "📢 የቻናል ቦነስ (5 ብር)", callback_data: `cmd_channel_bonus_${user.id}` },
     ],
+    // Admin button — only visible to the designated main admin
+    ...(MAIN_ADMIN_TELEGRAM_ID > 0 && user.id === MAIN_ADMIN_TELEGRAM_ID
+      ? [[{ text: "🔐 Admin Panel", callback_data: `cmd_admin_${user.id}` }]]
+      : []),
   ];
 
   // Full welcome text (for plain text messages — up to 4096 chars)
@@ -624,6 +630,26 @@ bot.callbackQuery(/^cmd_support_(\d+)$/, async (ctx) => {
   logger.info({ telegramId: userId }, "User entered support session via button");
 });
 
+
+// ── Admin Panel button ────────────────────────────────────────────────────────
+bot.callbackQuery(/^cmd_admin_(\d+)$/, async (ctx) => {
+  const userId = Number(ctx.match[1]);
+  if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
+  // Extra guard: only the designated main admin may proceed
+  if (MAIN_ADMIN_TELEGRAM_ID <= 0 || userId !== MAIN_ADMIN_TELEGRAM_ID) {
+    return ctx.answerCallbackQuery({ text: "❌ አልተፈቀደም", show_alert: true });
+  }
+  await ctx.answerCallbackQuery();
+  adminPasswordSessions.add(userId);
+  depositSessions.delete(userId);
+  withdrawSessions.delete(userId);
+  promoSessions.delete(userId);
+  supportSessions.delete(userId);
+  await ctx.reply(
+    `🔐 <b>Admin Panel</b>\n\nፓስወርድ ያስገቡ:`,
+    { parse_mode: "HTML" }
+  );
+});
 
 // ── No play URL (fallback) ─────────────────────────────────────────────────────
 bot.callbackQuery(/^cmd_noplay_(\d+)$/, async (ctx) => {
@@ -1280,6 +1306,38 @@ bot.on("message:text", async (ctx) => {
       }
       return;
     }
+  }
+
+  // ── Admin password session ─────────────────────────────────────────────────────
+  if (adminPasswordSessions.has(user.id)) {
+    adminPasswordSessions.delete(user.id);
+    const adminPassword = process.env["ADMIN_PASSWORD"];
+    if (!adminPassword) {
+      await ctx.reply("❌ ADMIN_PASSWORD አልተዋቀረም። ቢሮ ያነጋግሩ።");
+      return;
+    }
+    if (text !== adminPassword) {
+      await ctx.reply("❌ ፓስወርድ ትክክል አይደለም።");
+      return;
+    }
+    // Password correct — send mini-app admin page link
+    const miniAppUrl = (process.env["MINI_APP_URL"] ?? _botDomain)?.trim() || null;
+    const adminUrl = miniAppUrl ? `https://${miniAppUrl}/admin` : null;
+    if (!adminUrl) {
+      await ctx.reply("❌ MINI_APP_URL አልተዋቀረም።");
+      return;
+    }
+    await ctx.reply(
+      `✅ <b>Admin Panel</b>\n\nወደ አድሚን ገፅ ለመሄድ ከታቹ ቁልፍ ይጫኑ:`,
+      {
+        parse_mode: "HTML",
+        reply_markup: {
+          inline_keyboard: [[{ text: "🔐 Admin Panel ይክፈቱ", web_app: { url: adminUrl } }]],
+        },
+      }
+    );
+    logger.info({ telegramId: user.id }, "Admin authenticated via bot — admin panel link sent");
+    return;
   }
 
   // ── Support session: user typed their support message ─────────────────────────
