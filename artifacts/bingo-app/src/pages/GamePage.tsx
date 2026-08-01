@@ -176,7 +176,7 @@ export default function GamePage() {
       <div style={{ flex: 1, display: 'flex', gap: 8, padding: '10px 12px 12px', overflow: 'hidden' }}>
 
         {/* Left: Your Cartelas */}
-        <div style={{ flex: 1.1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 1.5, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div className="game-card" style={{ flex: 1, padding: '10px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
               <span style={{ fontSize: 12 }}>🎴</span>
@@ -259,7 +259,7 @@ export default function GamePage() {
         </div>
 
         {/* Right: 75-Ball Matrix */}
-        <div style={{ flex: 1.2, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div style={{ flex: 0.85, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div className="game-card" style={{ flex: 1, padding: '8px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
               <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
