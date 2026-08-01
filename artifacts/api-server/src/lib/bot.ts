@@ -620,18 +620,22 @@ bot.callbackQuery(/^cmd_support_(\d+)$/, async (ctx) => {
   const userId = Number(ctx.match[1]);
   if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
   await ctx.answerCallbackQuery();
-  supportSessions.add(userId);
-  depositSessions.delete(userId);
-  withdrawSessions.delete(userId);
-  promoSessions.delete(userId);
-  transferSessions.delete(userId);
+  const supportUsername = (process.env["SUPPORT_USERNAME"] ?? "").replace(/^@/, "");
+  if (!supportUsername) {
+    await ctx.reply("❌ Support username አልተዋቀረም። እንደገና ይሞክሩ።");
+    return;
+  }
+  const supportUrl = `https://t.me/${supportUsername}`;
   await ctx.reply(
-    `🆘 <b>ድጋፍ — Support</b>\n\n` +
-    `ጥያቄዎን ወይም ችግርዎን ይጻፉ። ቡድናችን <b>በቅርቡ ምላሽ ይሰጥዎታል።</b>\n\n` +
-    `<i>📝 መልዕክትዎን ከዚህ በታች ይላኩ:</i>`,
-    { parse_mode: "HTML" }
+    `🎧 <b>Support (እርዳታ)</b>\n\nቡድናችን ለእርዳታ ዝግጁ ነው። ከዚህ ላይ ይጫኑ:`,
+    {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [[{ text: "💬 Support ይክፈቱ", url: supportUrl }]],
+      },
+    }
   );
-  logger.info({ telegramId: userId }, "User entered support session via button");
+  logger.info({ telegramId: userId, supportUsername }, "User directed to support username");
 });
 
 
