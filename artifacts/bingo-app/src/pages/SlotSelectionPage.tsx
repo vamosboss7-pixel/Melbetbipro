@@ -92,8 +92,10 @@ export default function SlotSelectionPage() {
   }, [])
 
   // ── Balance helpers ───────────────────────────────────────────────────────
+  // `balance` is the total wallet (withdrawable + play combined);
+  // `playBalance` is a subset of it, so we must NOT add them together.
   const totalBalanceNum = player
-    ? parseFloat(player.balance) + parseFloat(player.playBalance)
+    ? parseFloat(player.balance)
     : 0
 
   const canAfford = (wantCount: number) => {
