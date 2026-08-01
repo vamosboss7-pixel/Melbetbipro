@@ -41,7 +41,7 @@ export default function GamePage() {
     } catch { return [] }
   })
 
-  const { connected, gameState, currentBall, winner } = useGame(selectedSlots)
+  const { connected, gameState, winner } = useGame(selectedSlots)
   const calledSet = new Set(gameState.calledBalls)
   const COLS = ['B', 'I', 'N', 'G', 'O']
 

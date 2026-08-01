@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { io, Socket } from 'socket.io-client'
+import { CARTELAS } from '../data/cartelas'
 
 export type GamePhase = 'waiting' | 'playing' | 'finished'
 
@@ -41,6 +42,24 @@ const DEFAULT_STATE: GameState = {
   currentBall: null,
 }
 
+/** Mirrors server getWinPattern — returns true if any winning pattern is complete */
+function checkWin(card: number[][], calledSet: Set<number>): boolean {
+  const isMarked = (r: number, c: number) =>
+    card[r]![c] === 0 || calledSet.has(card[r]![c]!)
+
+  for (let r = 0; r < 5; r++) {
+    if ([0, 1, 2, 3, 4].every(c => isMarked(r, c))) return true
+  }
+  for (let c = 0; c < 5; c++) {
+    if ([0, 1, 2, 3, 4].every(r => isMarked(r, c))) return true
+  }
+  if ([0, 1, 2, 3, 4].every(i => isMarked(i, i))) return true
+  if ([0, 1, 2, 3, 4].every(i => isMarked(i, 4 - i))) return true
+  if (([[0, 0], [0, 4], [4, 0], [4, 4]] as [number, number][]).every(([r, c]) => isMarked(r, c))) return true
+
+  return false
+}
+
 function getGuestIdentity() {
   let id = sessionStorage.getItem('guestId')
   if (!id) {
@@ -59,6 +78,30 @@ export function useGame(selectedCardIds: number[]) {
   const [takenCardIds, setTakenCardIds] = useState<number[]>([])
   const cardsSelectedRef = useRef(false)
 
+  // Refs so the socket event closures always see current values
+  const selectedCardIdsRef = useRef(selectedCardIds)
+  const gameStateRef = useRef<GameState>(DEFAULT_STATE)
+  const claimedRoundRef = useRef<string | null>(null)
+
+  // Keep selectedCardIdsRef in sync whenever selectedCardIds changes
+  useEffect(() => {
+    selectedCardIdsRef.current = selectedCardIds
+  }, [selectedCardIds])
+
+  /** Checks all player cards against calledSet; emits claim_bingo on the first win */
+  function tryClaimWin(socket: Socket, calledBalls: number[], roundId: string) {
+    if (!roundId || claimedRoundRef.current === roundId) return
+    const calledSet = new Set(calledBalls)
+    for (const cardId of selectedCardIdsRef.current) {
+      const card = CARTELAS[cardId - 1]
+      if (card && checkWin(card, calledSet)) {
+        claimedRoundRef.current = roundId
+        socket.emit('claim_bingo', { roundId, cardId })
+        break
+      }
+    }
+  }
+
   useEffect(() => {
     const { telegramId, firstName } = getGuestIdentity()
     cardsSelectedRef.current = false
@@ -73,8 +116,8 @@ export function useGame(selectedCardIds: number[]) {
       setConnected(true)
       socket.emit('join_room', { telegramId, firstName })
       // Select cards immediately after joining
-      if (selectedCardIds.length > 0) {
-        selectedCardIds.forEach(id => socket.emit('select_card', id))
+      if (selectedCardIdsRef.current.length > 0) {
+        selectedCardIdsRef.current.forEach(id => socket.emit('select_card', id))
         cardsSelectedRef.current = true
       }
     })
@@ -82,21 +125,34 @@ export function useGame(selectedCardIds: number[]) {
     socket.on('disconnect', () => setConnected(false))
 
     socket.on('game_state', (state: GameState) => {
+      gameStateRef.current = state
       setGameState(state)
       // If we haven't sent our cards yet and it's waiting phase, send them now
-      if (!cardsSelectedRef.current && state.phase === 'waiting' && selectedCardIds.length > 0) {
-        selectedCardIds.forEach(id => socket.emit('select_card', id))
+      if (!cardsSelectedRef.current && state.phase === 'waiting' && selectedCardIdsRef.current.length > 0) {
+        selectedCardIdsRef.current.forEach(id => socket.emit('select_card', id))
         cardsSelectedRef.current = true
+      }
+      // Check for a win on reconnect/state sync during a live round
+      if (state.phase === 'playing') {
+        tryClaimWin(socket, state.calledBalls, state.roundId)
       }
     })
 
     socket.on('ball_called', (data: { ball: number; col: string; calledBalls: number[] }) => {
       if (data.ball != null) {
-        setGameState(prev => ({
-          ...prev,
+        const currentRoundId = gameStateRef.current.roundId
+        const newState: GameState = {
+          ...gameStateRef.current,
           calledBalls: data.calledBalls,
           currentBall: data.ball,
-        }))
+        }
+        gameStateRef.current = newState
+        setGameState(newState)
+
+        // Win detection — check every card after every ball
+        if (gameStateRef.current.phase === 'playing') {
+          tryClaimWin(socket, data.calledBalls, currentRoundId)
+        }
       }
     })
 
@@ -109,6 +165,8 @@ export function useGame(selectedCardIds: number[]) {
       setWinner(null)
       setMyCardIds([])
       cardsSelectedRef.current = false
+      claimedRoundRef.current = null
+      gameStateRef.current = DEFAULT_STATE
       setGameState(DEFAULT_STATE)
     })
 
@@ -121,7 +179,11 @@ export function useGame(selectedCardIds: number[]) {
     })
 
     socket.on('player_count', (data: { count: number }) => {
-      setGameState(prev => ({ ...prev, playerCount: data.count }))
+      setGameState(prev => {
+        const next = { ...prev, playerCount: data.count }
+        gameStateRef.current = next
+        return next
+      })
     })
 
     return () => { socket.disconnect() }
