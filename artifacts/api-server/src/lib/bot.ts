@@ -438,6 +438,8 @@ bot.callbackQuery(/^cmd_deposit_(\d+)$/, async (ctx) => {
   await ctx.answerCallbackQuery();
   depositSessions.set(userId, { step: "amount", amount: 0 });
   withdrawSessions.delete(userId);
+  promoSessions.delete(userId);
+  transferSessions.delete(userId);
   await ctx.reply(`ማስገባት የሚፈልጉትን መጠን ከ10 ብር ጀምሮ ያስገቡ`);
 });
 
@@ -694,6 +696,9 @@ bot.callbackQuery(/^cmd_transfer_(\d+)$/, async (ctx) => {
   if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
   await ctx.answerCallbackQuery();
   transferSessions.set(userId, { step: "target", target: "", targetId: 0 });
+  depositSessions.delete(userId);
+  withdrawSessions.delete(userId);
+  promoSessions.delete(userId);
   await ctx.reply(
     `🔄 <b>ቶከን ማስተላለፍ</b>\n\n` +
     `🔄 ባላንስ ሊያስተላልፉለት የሚፈልጉትን ተጫዋቸ @username ወይም Telegram ID ያስገቡ ።`,
@@ -864,6 +869,8 @@ bot.command("deposit", async (ctx) => {
   if (!user) return;
   depositSessions.set(user.id, { step: "amount", amount: 0 });
   withdrawSessions.delete(user.id);
+  promoSessions.delete(user.id);
+  transferSessions.delete(user.id);
   await ctx.reply(`ማስገባት የሚፈልጉትን መጠን ከ10 ብር ጀምሮ ያስገቡ`);
 });
 
