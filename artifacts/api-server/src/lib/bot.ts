@@ -151,123 +151,6 @@ const supportSessions = new Set<number>();
 // Allows admin to reply to the forwarded message and have the bot route it back to the user
 const supportMsgToUser = new Map<number, number>();
 
-// AI assistant sessions — users currently in AI chat mode
-const aiSessions = new Set<number>();
-
-// ── Groq AI helper ────────────────────────────────────────────────────────────
-import Groq from "groq-sdk";
-
-const GROQ_SYSTEM_PROMPT = `CRITICAL RULE: You MUST respond in English ONLY. This rule overrides everything else. Even if the user writes in Amharic, Tigrinya, Arabic, or any other language — your reply must ALWAYS be in English. Never write a single word in Amharic. Never switch languages. If you ever respond in a language other than English, you have failed your instructions.
-
-You are the official support AI for Melkam Bingo, a Telegram Mini App real-time multiplayer bingo game. Use ONLY the facts below. Never guess or invent information.
-
-## GAME ROOMS & HOW TO PLAY
-- There are 2 game rooms: Room 5 (5 ETB per card) and Room 10 (10 ETB per card).
-- Each player can select up to 6 cards per round.
-- A round starts with a ~50-second card selection countdown. If at least 1 player has cards when the countdown ends, the game begins.
-- Balls are called automatically every 3 seconds (B1–O75). The center square (N3) is a FREE space — always marked.
-- Win conditions: complete any Row, Column, Diagonal, or Four Corners.
-- Win detection is automatic. The prize pool is the total stakes minus a 20% platform commission, split among winners.
-
-## DEPOSIT
-- Minimum deposit: 10 ETB.
-- Method: Telebirr only.
-- How to deposit: tap the "Deposit" button inside the Mini App, or follow the bot instructions. You can send money to the Telebirr number shown and then forward the confirmation SMS to the bot, or paste the transaction code.
-- Deposits are credited to your balance automatically once confirmed.
-- Deposits go into both your main balance and play balance.
-
-## WITHDRAWAL
-- Only your WINNINGS can be withdrawn. Winnings = Main Balance minus Play Balance.
-- Minimum withdrawal: 100 ETB (players), 150 ETB (agents).
-- Your account must keep at least 10 ETB after withdrawal.
-- Method: Telebirr. Withdrawals are processed manually by an admin and sent to your Telebirr account.
-- To request withdrawal: tap "Withdraw" in the Mini App and enter the amount.
-
-## BALANCE TYPES
-- Main Balance: your total funds.
-- Play Balance: non-withdrawable portion (comes from deposits, bonuses, and check-in rewards). Used first when you play.
-- Withdrawable amount = Main Balance minus Play Balance. Only this portion (your winnings) can be withdrawn.
-
-## REFERRAL / INVITE SYSTEM
-- Share your unique invite link with friends.
-- When your invited friend makes their first deposit, you receive a 5 ETB welcome bonus.
-- You also earn a 5% lifetime commission on every deposit your invited friends make — forever.
-- Bonus funds are added to your Play Balance (for playing only — cannot be withdrawn).
-
-## DAILY CHECK-IN BONUS
-- Log in every day to claim a daily reward. Rewards increase with your streak:
-  Day 1: 0.5 ETB | Day 2: 1 ETB | Day 3: 1.5 ETB | Day 4: 2 ETB | Day 5: 3 ETB | Day 6: 4 ETB | Day 7: 5 ETB
-- Missing a day resets your streak to Day 1. After Day 7 it wraps back to Day 1.
-- Check-in rewards go to your Play Balance (for playing only).
-
-## ACHIEVEMENTS / MILESTONES
-Games played milestones:
-  - 5 games: +1 ETB
-  - 20 games: +5 ETB
-  - 50 games: +15 ETB
-  - 100 games: +30 ETB
-Invite milestones:
-  - Invite 3 friends: +2 ETB
-  - Invite 10 friends: +5 ETB
-  - Invite 25 friends: +15 ETB
-- Achievement rewards go to your Play Balance (for playing only).
-
-## LUCKY BOX
-- Lucky Box is a special event posted to the Telegram channel by admins.
-- Users can tap a box in the channel post to claim a fixed ETB coupon (e.g., one of 50 boxes worth 10 ETB each).
-- It is a first-come, first-served event.
-
-## PROMO CODES
-- Special promo codes can be entered in the bot or Wallet page to receive a bonus amount.
-- Codes have limited uses and may have expiry dates.
-- Ask admin or watch the official channel for active promo codes.
-
-## AGENT / PROMOTER SYSTEM
-- Regular players can apply to become a Promoter/Agent.
-- Agents earn 5% commission on every deposit made by players they referred, plus 5 ETB per new player who joins through their link.
-- Agents have a separate Agent Balance that can be withdrawn (minimum 150 ETB) or transferred to their play balance.
-
-## LEADERBOARD
-- View daily and all-time top players ranked by games played and wins inside the Mini App.
-
-## REGISTRATION & LOGIN
-- Open the Telegram bot and tap "Start Game" to launch the Mini App.
-- Your Telegram identity is used automatically — no separate account or password needed.
-- Some channels may require you to join them before you can register.
-
-## IMPORTANT RULES
-- Play Balance (bonuses, check-in, achievements) is for PLAYING ONLY and can NEVER be withdrawn.
-- Only real winnings (Main Balance minus Play Balance) can be withdrawn.
-- Minimum deposit is 10 ETB. Minimum withdrawal is 100 ETB for players, 150 ETB for agents.
-
-Always be polite and concise. If you don't know the answer, tell the user to contact human support via the 🆘 Support button.`;
-
-
-async function callGroq(userMessage: string): Promise<string> {
-  const apiKey = process.env["GROQ_API_KEY"];
-  if (!apiKey) {
-    return "❌ AI አገልግሎቱ አሁን አይገኝም። እባክዎ 🆘 Support ይሞክሩ።";
-  }
-  try {
-    // Step 1: Generate a perfect English answer with Groq
-    const groq = new Groq({ apiKey });
-    const completion = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: GROQ_SYSTEM_PROMPT },
-        { role: "user", content: userMessage },
-      ],
-      max_tokens: 512,
-      temperature: 0.3,
-    });
-    const englishReply = completion.choices[0]?.message?.content?.trim();
-    return englishReply ?? "❌ No response received.";
-  } catch (error) {
-    console.error("Groq Error Details:", error);
-    logger.warn({ error }, "Groq/translate error");
-    return "❌ AI ምላሽ ማግኘት አልተቻለም። ጥቂት ቆይተው እንደገና ይሞክሩ።";
-  }
-}
 
 // ── /start ────────────────────────────────────────────────────────────────────
 bot.command("start", async (ctx) => {
@@ -415,9 +298,6 @@ bot.command("start", async (ctx) => {
       { text: "🆘 Support", callback_data: `cmd_support_${user.id}` },
     ],
     [
-      { text: "🤖 የ AI አጋዥ (24/7)", callback_data: `cmd_ai_${user.id}` },
-    ],
-    [
       { text: "🔄 Transfer", callback_data: `cmd_transfer_${user.id}` },
       { text: "📣 Join Channel", url: joinChannelUrl },
     ],
@@ -440,8 +320,7 @@ bot.command("start", async (ctx) => {
     `🎟 <b>Promo Code</b> — ፕሮሞ ኮድ ያስገቡ\n` +
     `🔄 <b>Transfer</b> — ወደ ሌላ ላኩ\n` +
     `📣 <b>Join Channel</b> — ቻናሉን ይቀላቀሉ\n` +
-    `🆘 <b>Support</b> — እርዳታ ይጠይቁ\n` +
-    `🤖 <b>AI አጋዥ</b> — 24/7 AI ጥያቄ ይጠይቁ\n\n` +
+    `🆘 <b>Support</b> — እርዳታ ይጠይቁ\n\n` +
     `👇 ከታቹ ቁልፍ ይምረጡ`;
 
   // Short caption for photo messages (Telegram limit: 1024 chars)
@@ -504,9 +383,6 @@ bot.command("start", async (ctx) => {
         [
           { text: "🎟 Promo Code", callback_data: `cmd_promo_${user.id}` },
           { text: "🆘 Support", callback_data: `cmd_support_${user.id}` },
-        ],
-        [
-          { text: "🤖 የ AI አጋዥ (24/7)", callback_data: `cmd_ai_${user.id}` },
         ],
         [
           { text: "🔄 Transfer", callback_data: `cmd_transfer_${user.id}` },
@@ -748,40 +624,6 @@ bot.callbackQuery(/^cmd_support_(\d+)$/, async (ctx) => {
   logger.info({ telegramId: userId }, "User entered support session via button");
 });
 
-// ── AI assistant button ────────────────────────────────────────────────────────
-bot.callbackQuery(/^cmd_ai_(\d+)$/, async (ctx) => {
-  const userId = Number(ctx.match[1]);
-  if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
-  await ctx.answerCallbackQuery();
-  // Clear all other active sessions
-  depositSessions.delete(userId);
-  withdrawSessions.delete(userId);
-  promoSessions.delete(userId);
-  supportSessions.delete(userId);
-  transferSessions.delete(userId);
-  aiSessions.add(userId);
-  const exitKb = { inline_keyboard: [[{ text: "🛑 ከ AI ውጣ", callback_data: `cmd_ai_exit_${userId}` }]] };
-  await ctx.reply(
-    `🤖 <b>የ AI አጋዥ</b>\n\n` +
-    `👋 ሰላም! እኔ የመልካም ቢንጎ AI አጋዥ ነኝ። የፈለጉትን ጥያቄ እዚህ መፃፍ ይችላሉ...\n\n` +
-    `<i>ጥያቄዎን ይላኩ — 24/7 ዝግጁ ነኝ!</i>`,
-    { parse_mode: "HTML", reply_markup: exitKb }
-  );
-  logger.info({ telegramId: userId }, "User entered AI session");
-});
-
-// ── AI exit button ─────────────────────────────────────────────────────────────
-bot.callbackQuery(/^cmd_ai_exit_(\d+)$/, async (ctx) => {
-  const userId = Number(ctx.match[1]);
-  if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
-  await ctx.answerCallbackQuery("👋 ወደ ዋናው ምናሌ ተመለሱ");
-  aiSessions.delete(userId);
-  await ctx.reply(
-    `✅ <b>ከ AI ወጥተዋል።</b>\n\nወደ ዋናው ምናሌ ለመመለስ /start ይጫኑ።`,
-    { parse_mode: "HTML" }
-  );
-  logger.info({ telegramId: userId }, "User exited AI session");
-});
 
 // ── No play URL (fallback) ─────────────────────────────────────────────────────
 bot.callbackQuery(/^cmd_noplay_(\d+)$/, async (ctx) => {
@@ -1471,23 +1313,6 @@ bot.on("message:text", async (ctx) => {
     return;
   }
 
-  // ── AI assistant session: route user message through Gemini ──────────────────
-  if (aiSessions.has(user.id)) {
-    const exitKb = { inline_keyboard: [[{ text: "🛑 ከ AI ውጣ", callback_data: `cmd_ai_exit_${user.id}` }]] };
-    try {
-      // Show typing action while Groq processes
-      await ctx.replyWithChatAction("typing");
-      const aiReply = await callGroq(text);
-      await ctx.reply(`🤖 ${aiReply}`, { parse_mode: "HTML", reply_markup: exitKb });
-    } catch (err) {
-      logger.error({ err, telegramId: user.id }, "AI session Groq call failed");
-      await ctx.reply(
-        `❌ AI ምላሽ ማግኘት አልተቻለም። ጥቂት ቆይተው ይሞክሩ ወይም 🆘 Support ያነጋግሩ።`,
-        { reply_markup: exitKb }
-      );
-    }
-    return;
-  }
 
   // ── Promo code input flow ──
   if (promoSessions.has(user.id)) {
