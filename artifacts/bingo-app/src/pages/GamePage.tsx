@@ -216,36 +216,38 @@ export default function GamePage() {
                 <div style={{ fontSize: 10, color: '#888' }}>ወደ ስሎት ይሂዱ</div>
               </div>
             ) : (
-              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {selectedSlots.map((slotNum, idx) => {
                   const card = CARTELAS[slotNum - 1]
                   if (!card) return null
                   return (
                     <div key={slotNum} style={{
-                      flexShrink: 0,
+                      flex: 1,
+                      minHeight: 0,
                       border: '1.5px solid #c0392b',
                       borderRadius: 10,
-                      padding: '8px 7px 7px',
+                      padding: '5px 7px 4px',
                       boxShadow: '0 0 8px rgba(192,57,43,0.35), inset 0 0 4px rgba(192,57,43,0.08)',
                       background: '#1c0808',
+                      display: 'flex',
+                      flexDirection: 'column',
                     }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 3, flexShrink: 0 }}>
                         <span style={{ fontSize: 9, fontWeight: 700, color: '#888' }}>CARTELA {idx + 1}</span>
                         <span style={{ fontSize: 10, fontWeight: 800, color: '#D4A017' }}>#{slotNum}</span>
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, marginBottom: 2 }}>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, marginBottom: 2, flexShrink: 0 }}>
                         {COLS.map(c => (
                           <div key={c} style={{ textAlign: 'center', fontSize: 8, fontWeight: 800, color: '#D4A017' }}>{c}</div>
                         ))}
                       </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2 }}>
+                      <div style={{ flex: 1, minHeight: 0, display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gridTemplateRows: 'repeat(5, 1fr)', gap: 2 }}>
                         {card.map((row, r) =>
                           row.map((num, c) => {
                             const isFree = num === 0
                             const isCalled = !isFree && calledSet.has(num)
                             return (
                               <div key={`${r}-${c}`} style={{
-                                aspectRatio: '1',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 borderRadius: 3,
                                 background: isFree
@@ -259,6 +261,7 @@ export default function GamePage() {
                                 color: '#fff',
                                 lineHeight: 1,
                                 transition: 'background 0.3s',
+                                overflow: 'hidden',
                               }}>
                                 {isFree ? '★' : num}
                               </div>
