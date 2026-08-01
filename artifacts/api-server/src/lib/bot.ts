@@ -703,9 +703,8 @@ bot.callbackQuery(/^cmd_transfer_(\d+)$/, async (ctx) => {
   clearAllSessions(userId);
   transferSessions.set(userId, { step: "target", target: "", targetId: 0 });
   await ctx.reply(
-    `🔄 <b>ቶከን ማስተላለፍ</b>\n\n` +
-    `🔄 ባላንስ ሊያስተላልፉለት የሚፈልጉትን ተጫዋቸ @username ወይም Telegram ID ያስገቡ ።`,
-    { parse_mode: "HTML" }
+    `🔄 ባላንስ ማስተላለፍ\n\n` +
+    `🔄 ባላንስ ሊያስተላልፉለት የሚፈልጉትን ተጫዋቸ @username ወይም Telegram ID ያስገቡ ።`
   );
 });
 
