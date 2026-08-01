@@ -36,11 +36,7 @@ export default function SlotSelectionPage() {
   }
 
   const enterGame = () => {
-    const slots = selectedSlots.length > 0 ? selectedSlots : (() => {
-      const available = Array.from({ length: 500 }, (_, i) => i + 1).filter(n => !HIGHLIGHTED.has(n))
-      return available.sort(() => Math.random() - 0.5).slice(0, 2)
-    })()
-    sessionStorage.setItem('selectedSlots', JSON.stringify(slots))
+    sessionStorage.setItem('selectedSlots', JSON.stringify(selectedSlots))
     navigate('/game')
   }
 
