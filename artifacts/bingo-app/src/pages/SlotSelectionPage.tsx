@@ -13,7 +13,7 @@ export default function SlotSelectionPage() {
   // Countdown timer — auto-enter when it hits 0
   useEffect(() => {
     if (timeLeft <= 0) {
-      randomPick(2)
+      enterGame()
       return
     }
     const id = setInterval(() => setTimeLeft(t => t - 1), 1000)
@@ -32,7 +32,15 @@ export default function SlotSelectionPage() {
   const randomPick = (count: 1 | 2) => {
     const available = Array.from({ length: 500 }, (_, i) => i + 1).filter(n => !HIGHLIGHTED.has(n))
     const picked = available.sort(() => Math.random() - 0.5).slice(0, count)
-    sessionStorage.setItem('selectedSlots', JSON.stringify(picked))
+    setSelectedSlots(picked)
+  }
+
+  const enterGame = () => {
+    const slots = selectedSlots.length > 0 ? selectedSlots : (() => {
+      const available = Array.from({ length: 500 }, (_, i) => i + 1).filter(n => !HIGHLIGHTED.has(n))
+      return available.sort(() => Math.random() - 0.5).slice(0, 2)
+    })()
+    sessionStorage.setItem('selectedSlots', JSON.stringify(slots))
     navigate('/game')
   }
 
@@ -211,33 +219,33 @@ export default function SlotSelectionPage() {
         </div>
 
         {/* Buttons */}
-        <div style={{ display: 'flex', gap: 10, paddingBottom: 20 }}>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 10 }}>
           <button
-            className="btn-enter"
             onClick={() => randomPick(1)}
             style={{
-              flex: 1, padding: '13px 0',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              border: 'none', cursor: 'pointer',
+              flex: 1, padding: '11px 0',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              border: 'none', cursor: 'pointer', borderRadius: 50,
               background: 'linear-gradient(to right, #7c3aed, #a855f7)',
             }}
           >
-            <span style={{ fontSize: 14 }}>🎲</span>
-            <span className="font-condensed" style={{ letterSpacing: '0.1em', fontSize: 16, fontWeight: 700 }}>RANDOM PICK 1</span>
+            <span style={{ fontSize: 13 }}>🎲</span>
+            <span className="font-condensed" style={{ letterSpacing: '0.08em', fontSize: 15, fontWeight: 700, color: '#fff' }}>RANDOM PICK 1</span>
           </button>
           <button
-            className="btn-enter"
             onClick={() => randomPick(2)}
             style={{
-              flex: 1, padding: '13px 0',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
-              border: 'none', cursor: 'pointer',
+              flex: 1, padding: '11px 0',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              border: 'none', cursor: 'pointer', borderRadius: 50,
+              background: 'linear-gradient(to right, #c0392b, #ff6b00)',
             }}
           >
-            <span style={{ fontSize: 14 }}>🎲</span>
-            <span className="font-condensed" style={{ letterSpacing: '0.1em', fontSize: 16, fontWeight: 700 }}>RANDOM PICK 2</span>
+            <span style={{ fontSize: 13 }}>🎲</span>
+            <span className="font-condensed" style={{ letterSpacing: '0.08em', fontSize: 15, fontWeight: 700, color: '#fff' }}>RANDOM PICK 2</span>
           </button>
         </div>
+        <div style={{ paddingBottom: 20 }} />
       </div>
     </div>
   )
