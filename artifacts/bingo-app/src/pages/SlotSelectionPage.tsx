@@ -11,14 +11,24 @@ export default function SlotSelectionPage() {
   const [selectedSlots, setSelectedSlots] = useState<number[]>([])
   const [timeLeft, setTimeLeft] = useState(31)
   const [jackpotPool, setJackpotPool] = useState<string>('0.00')
+  const [stakePerCard, setStakePerCard] = useState<number>(0)
+  const [showNoBalance, setShowNoBalance] = useState(false)
   const { player } = usePlayer()
 
-  // Fetch jackpot pool on mount
+  // Fetch jackpot pool + stake on mount
   useEffect(() => {
     fetch('/api/jackpot/status')
       .then(r => r.json())
       .then((data: { pool: number }) => {
         setJackpotPool(Number(data.pool ?? 0).toFixed(2))
+      })
+      .catch(() => {/* ignore */})
+
+    fetch('/api/game/rooms')
+      .then(r => r.json())
+      .then((data: { room10?: { stakePerCard: number } | null }) => {
+        const stake = data?.room10?.stakePerCard ?? 0
+        setStakePerCard(stake)
       })
       .catch(() => {/* ignore */})
   }, [])
@@ -33,16 +43,28 @@ export default function SlotSelectionPage() {
     return () => clearInterval(id)
   }, [timeLeft])
 
+  // Numeric total balance for checks
+  const totalBalanceNum = player
+    ? parseFloat(player.balance) + parseFloat(player.playBalance)
+    : 0
+
+  const canAfford = (wantCount: number) => {
+    if (stakePerCard <= 0) return true  // free game
+    return totalBalanceNum >= wantCount * stakePerCard
+  }
+
   const toggleSlot = (n: number) => {
     if (HIGHLIGHTED.has(n)) return  // taken slots are not selectable
     setSelectedSlots(prev => {
-      if (prev.includes(n)) return prev.filter(x => x !== n)
+      if (prev.includes(n)) return prev.filter(x => x !== n)  // deselect always ok
       if (prev.length >= 2) return prev
+      if (!canAfford(prev.length + 1)) { setShowNoBalance(true); return prev }
       return [...prev, n]
     })
   }
 
   const randomPick = (count: 1 | 2) => {
+    if (!canAfford(count)) { setShowNoBalance(true); return }
     const available = Array.from({ length: 500 }, (_, i) => i + 1).filter(n => !HIGHLIGHTED.has(n))
     const picked = available.sort(() => Math.random() - 0.5).slice(0, count)
     setSelectedSlots(picked)
@@ -63,13 +85,65 @@ export default function SlotSelectionPage() {
     ? (player.username ? `@${player.username}` : player.firstName)
     : '...'
 
-  // Total playable balance = balance + playBalance
-  const totalBalance = player
-    ? (parseFloat(player.balance) + parseFloat(player.playBalance)).toFixed(2)
-    : '—'
+  // Formatted total balance for display
+  const totalBalance = player ? totalBalanceNum.toFixed(2) : '—'
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 30%, #2e0d10 0%, #180608 70%)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 30%, #2e0d10 0%, #180608 70%)', position: 'relative' }}>
+
+      {/* Insufficient Balance Modal */}
+      {showNoBalance && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.75)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: '0 24px',
+        }}>
+          <div style={{
+            background: 'linear-gradient(145deg, #1e0909, #2d1212)',
+            border: '1.5px solid #b8860b',
+            borderRadius: 20,
+            padding: '32px 24px 24px',
+            width: '100%',
+            maxWidth: 340,
+            textAlign: 'center',
+            boxShadow: '0 0 32px rgba(212,160,23,0.2)',
+          }}>
+            <div style={{
+              width: 64, height: 64, borderRadius: '50%',
+              background: 'linear-gradient(135deg, #c0392b, #7c0000)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 20px',
+              fontSize: 28,
+            }}>👛</div>
+            <div className="font-condensed" style={{
+              fontSize: 20, fontWeight: 900, color: '#fff',
+              letterSpacing: '0.08em', marginBottom: 10,
+            }}>INSUFFICIENT BALANCE</div>
+            <div style={{ fontSize: 13, color: '#aaa', lineHeight: 1.5, marginBottom: 6 }}>
+              Please deposit ETB to select more cartelas.
+            </div>
+            {stakePerCard > 0 && (
+              <div style={{ fontSize: 12, color: '#D4A017', fontWeight: 700, marginBottom: 20 }}>
+                Required: {stakePerCard} ETB per cartela
+              </div>
+            )}
+            <div style={{ fontSize: 12, color: '#888', marginBottom: 20 }}>
+              Your balance: <span style={{ color: '#fff', fontWeight: 700 }}>{totalBalance} ETB</span>
+            </div>
+            <button
+              onClick={() => setShowNoBalance(false)}
+              style={{
+                width: '100%', padding: '13px 0',
+                borderRadius: 50, border: 'none', cursor: 'pointer',
+                background: 'linear-gradient(to right, #c0392b, #ff6b00)',
+                fontSize: 15, fontWeight: 800, color: '#fff',
+                letterSpacing: '0.08em',
+              }}
+            >CLOSE</button>
+          </div>
+        </div>
+      )}
 
       {/* Header */}
       <div style={{ background: '#1e0909', borderBottom: '1px solid #5c1a1a', padding: '10px 14px' }}>
