@@ -621,7 +621,9 @@ bot.callbackQuery(/^cmd_support_(\d+)$/, async (ctx) => {
   }
   const supportUrl = `https://t.me/${supportUsername}`;
   await ctx.reply(
-    `🎧 <b>Support (እርዳታ)</b>\n\nቡድናችን ለእርዳታ ዝግጁ ነው። ከዚህ ላይ ይጫኑ:`,
+    `🎧 <b>እገዛ ይፈልጋሉ? (Support)</b>\n\n` +
+    `👇 ለማንኛውም ጥያቄ ወይም አስተያየት 👇\n` +
+    `👤 @${supportUsername}`,
     {
       parse_mode: "HTML",
       reply_markup: {
