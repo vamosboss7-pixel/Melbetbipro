@@ -1,8 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useLocation } from 'wouter'
 
-const WINNING_CARD = {
-  id: 318,
+interface WinnerData {
+  roundId: string
+  winners: { telegramId: number; firstName: string; cardId: number; card: number[][], winPattern: number[] }[]
+  prizePerWinner: number
+}
+
+const FALLBACK_CARD = {
   numbers: [
     [4,  17, 32, 47, 62],
     [10, 20, 39, 51, 66],
@@ -10,7 +15,7 @@ const WINNING_CARD = {
     [13, 26, 41, 53, 69],
     [14, 27, 45, 54, 70],
   ],
-  called: new Set([4, 62, 39, 25, 14, 70, 5, 15, 29]),
+  called: new Set([4, 62, 39, 25, 14, 70]),
 }
 
 const CONFETTI = Array.from({ length: 20 }, (_, i) => ({
@@ -23,11 +28,24 @@ const CONFETTI = Array.from({ length: 20 }, (_, i) => ({
   duration: `${2.5 + Math.random() * 2}s`,
 }))
 
-const TOTAL_COUNTDOWN = 5
+const TOTAL_COUNTDOWN = 8
 
 export default function WinnerPage() {
   const [, navigate] = useLocation()
   const [countdown, setCountdown] = useState(TOTAL_COUNTDOWN)
+
+  // Load winner data from sessionStorage (set by GamePage)
+  const [winnerData] = useState<WinnerData | null>(() => {
+    try {
+      const raw = sessionStorage.getItem('winnerData')
+      return raw ? JSON.parse(raw) : null
+    } catch { return null }
+  })
+
+  const winner = winnerData?.winners?.[0]
+  const cardNumbers = winner?.card ?? FALLBACK_CARD.numbers
+  const winPattern = new Set(winner?.winPattern ?? [])
+  const prizePer = winnerData?.prizePerWinner ?? 0
 
   useEffect(() => {
     const t = setInterval(() => {
@@ -41,15 +59,11 @@ export default function WinnerPage() {
 
   return (
     <div style={{
-      height: '100vh',
-      overflow: 'hidden',
+      height: '100vh', overflow: 'hidden',
       background: 'radial-gradient(ellipse at 50% 30%, #2e0d10 0%, #180608 70%)',
       display: 'flex', flexDirection: 'column',
-      padding: '10px 12px 12px',
-      position: 'relative',
-      boxSizing: 'border-box',
+      padding: '10px 12px 12px', position: 'relative', boxSizing: 'border-box',
     }}>
-      {/* Confetti */}
       {CONFETTI.map(c => (
         <div key={c.id} style={{
           position: 'fixed', left: c.left, top: c.top,
@@ -85,7 +99,9 @@ export default function WinnerPage() {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, flexShrink: 0 }}>
           <div className="game-card" style={{ padding: '8px 10px', textAlign: 'center' }}>
             <div style={{ fontSize: 9, color: '#888', fontWeight: 600, letterSpacing: '0.04em', marginBottom: 2 }}>GRAND POOL</div>
-            <div className="font-condensed" style={{ fontSize: 20, fontWeight: 900, color: '#D4A017' }}>656 ETB</div>
+            <div className="font-condensed" style={{ fontSize: 20, fontWeight: 900, color: '#D4A017' }}>
+              {prizePer > 0 ? `${prizePer} ETB` : '— ETB'}
+            </div>
           </div>
           <div className="game-card" style={{ padding: '8px 10px', display: 'flex', alignItems: 'center', gap: 8 }}>
             <div style={{
@@ -93,10 +109,14 @@ export default function WinnerPage() {
               background: '#c0392b', display: 'flex', alignItems: 'center',
               justifyContent: 'center', fontSize: 11, color: '#fff', fontWeight: 800,
               border: '1.5px solid #D4A017',
-            }}>@</div>
+            }}>🏆</div>
             <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>@LENSA</div>
-              <div style={{ fontSize: 9, color: '#D4A017', fontWeight: 700 }}>656 ETB</div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#fff', lineHeight: 1.2 }}>
+                {winner?.firstName ?? '@WINNER'}
+              </div>
+              <div style={{ fontSize: 9, color: '#D4A017', fontWeight: 700 }}>
+                {prizePer > 0 ? `${prizePer} ETB` : 'WINNER'}
+              </div>
             </div>
           </div>
         </div>
@@ -105,10 +125,11 @@ export default function WinnerPage() {
         <div className="game-card" style={{ padding: '8px 10px', flexShrink: 0 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
             <span style={{ fontSize: 11 }}>👑</span>
-            <span className="font-condensed" style={{ fontSize: 12, fontWeight: 700, color: '#D4A017', letterSpacing: '0.05em' }}>Cartela #318</span>
-            <span style={{ background: '#7c3aed', borderRadius: 4, padding: '1px 6px', fontSize: 8, fontWeight: 700, color: '#fff', letterSpacing: '0.06em' }}>VIP</span>
+            <span className="font-condensed" style={{ fontSize: 12, fontWeight: 700, color: '#D4A017', letterSpacing: '0.05em' }}>
+              Cartela #{winner?.cardId ?? '—'}
+            </span>
+            <span style={{ background: '#7c3aed', borderRadius: 4, padding: '1px 6px', fontSize: 8, fontWeight: 700, color: '#fff' }}>WIN</span>
           </div>
-          {/* BINGO header */}
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, marginBottom: 3 }}>
             {['B','I','N','G','O'].map(c => (
               <div key={c} style={{
@@ -118,14 +139,14 @@ export default function WinnerPage() {
               }}>{c}</div>
             ))}
           </div>
-          {/* Card rows */}
-          {WINNING_CARD.numbers.map((row, ri) => (
+          {cardNumbers.map((row, ri) => (
             <div key={ri} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 3, marginBottom: 3 }}>
               {row.map((num, ci) => {
                 const isFree = num === 0
-                const isMatched = !isFree && WINNING_CARD.called.has(num)
+                const isWin = !isFree && winPattern.has(num)
+                const isMatched = !isFree && (FALLBACK_CARD.called.has(num) || isWin)
                 return (
-                  <div key={ci} className={`bingo-cell${isFree ? ' free' : isMatched ? ' matched' : ''}`} style={{ height: 30, fontSize: 10 }}>
+                  <div key={ci} className={`bingo-cell${isFree ? ' free' : (isWin || isMatched) ? ' matched' : ''}`} style={{ height: 30 }}>
                     {isFree ? '👑' : num}
                   </div>
                 )
@@ -134,12 +155,12 @@ export default function WinnerPage() {
           ))}
         </div>
 
-        {/* Stats bar */}
+        {/* Stats */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 6, flexShrink: 0 }}>
           {[
-            { value: '1', label: 'BINGO LINE' },
-            { value: '16', label: 'BALLS CALLED' },
-            { value: '48S', label: 'DURATION' },
+            { value: String(winnerData?.winners?.length ?? 1), label: 'WINNERS' },
+            { value: String(winner?.winPattern?.length ?? '—'), label: 'WIN PATTERN' },
+            { value: prizePer > 0 ? `${prizePer}` : '—', label: 'PRIZE ETB' },
           ].map((s, i) => (
             <div key={i} className="game-card" style={{ padding: '6px 8px', textAlign: 'center' }}>
               <div className="font-condensed" style={{ fontSize: 18, fontWeight: 900, color: '#fff' }}>{s.value}</div>
@@ -148,7 +169,7 @@ export default function WinnerPage() {
           ))}
         </div>
 
-        {/* Countdown + progress */}
+        {/* Countdown */}
         <div style={{ flexShrink: 0 }}>
           <div style={{ textAlign: 'center', marginBottom: 6 }}>
             <span className="font-condensed" style={{ fontSize: 13, fontWeight: 700, color: '#e53e3e', letterSpacing: '0.08em' }}>
@@ -160,17 +181,13 @@ export default function WinnerPage() {
           </div>
         </div>
 
-        {/* Back to lobby */}
         <button
           className="btn-enter"
           onClick={() => navigate('/')}
           style={{ flexShrink: 0, width: '100%', padding: '11px 0', border: 'none', cursor: 'pointer' }}
         >
-          <span className="font-condensed" style={{ letterSpacing: '0.1em', fontSize: 16, fontWeight: 800 }}>
-            BACK TO LOBBY
-          </span>
+          <span className="font-condensed" style={{ letterSpacing: '0.1em', fontSize: 16, fontWeight: 800 }}>BACK TO LOBBY</span>
         </button>
-
       </div>
     </div>
   )

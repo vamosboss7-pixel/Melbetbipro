@@ -1,24 +1,16 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'wouter'
 import { CARTELAS } from '../data/cartelas'
+import { useGame } from '../hooks/useGame'
 
-// 75-ball matrix columns
 const BINGO_COLS = ['B', 'I', 'N', 'G', 'O'] as const
 const COL_RANGES: Record<string, [number, number]> = {
   B: [1, 15], I: [16, 30], N: [31, 45], G: [46, 60], O: [61, 75],
 }
-
-// Demo: called balls
-const CALLED_BALLS = [5, 4, 15, 29, 25, 14, 62]
-const LATEST_BALL = 62
-
-// Build matrix: rows 1-15, cols B-I-N-G-O
-function getMatrixCell(col: string, row: number) {
-  const [start] = COL_RANGES[col]
-  return start + row - 1
+const COL_BADGE_COLORS: Record<string, string> = {
+  B: '#1565c0', I: '#6a0dad', N: '#b71c1c', G: '#e65100', O: '#880e4f',
 }
 
-// Recent balls with their column letter
 function getBallCol(n: number): string {
   for (const [col, [start, end]] of Object.entries(COL_RANGES)) {
     if (n >= start && n <= end) return col
@@ -26,49 +18,60 @@ function getBallCol(n: number): string {
   return 'B'
 }
 
-const RECENT_BALLS = [14, 25, 29, 15, 4, 5, 62].map(n => ({ n, col: getBallCol(n) }))
-
-const COL_BADGE_COLORS: Record<string, string> = {
-  B: '#1565c0', I: '#6a0dad', N: '#b71c1c', G: '#e65100', O: '#880e4f',
+function getMatrixCell(col: string, row: number) {
+  const [start] = COL_RANGES[col]
+  return start + row - 1
 }
 
-const COL_COLORS: Record<string, string> = {
-  B: '#1a1a1a', I: '#1a1a1a', N: '#1a1a1a', G: '#1a1a1a', O: '#1a1a1a',
+function formatCountdown(s: number) {
+  const m = Math.floor(s / 60)
+  const sec = s % 60
+  return m > 0 ? `${m}:${String(sec).padStart(2, '0')}` : `${sec}S`
 }
 
 export default function GamePage() {
   const [, navigate] = useLocation()
-  const [phase, setPhase] = useState<'waiting' | 'active'>('active')
   const [muted, setMuted] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  // Read selected slots from sessionStorage
   const [selectedSlots] = useState<number[]>(() => {
     try {
       const stored = sessionStorage.getItem('selectedSlots')
       return stored ? JSON.parse(stored) : []
-    } catch {
-      return []
-    }
+    } catch { return [] }
   })
 
-  // Audio setup
+  const { connected, gameState, currentBall, winner } = useGame(selectedSlots)
+  const calledSet = new Set(gameState.calledBalls)
+  const COLS = ['B', 'I', 'N', 'G', 'O']
+
+  // Navigate to winner page when winner is declared
+  useEffect(() => {
+    if (winner) {
+      setTimeout(() => navigate('/winner'), 1500)
+    }
+  }, [winner, navigate])
+
+  // Audio
   useEffect(() => {
     const audio = new Audio('/audio/bg-music.mp3')
     audio.loop = true
-    audio.volume = 0.4
+    audio.volume = 0.35
     audioRef.current = audio
-    audio.play().catch(() => { /* autoplay may be blocked */ })
+    audio.play().catch(() => {})
     return () => { audio.pause(); audio.src = '' }
   }, [])
-
-  // Mute/unmute
   useEffect(() => {
     if (audioRef.current) audioRef.current.muted = muted
   }, [muted])
 
-  const calledSet = new Set(CALLED_BALLS)
-  const COLS = ['B', 'I', 'N', 'G', 'O']
+  const recentBalls = [...gameState.calledBalls]
+    .slice(-7)
+    .reverse()
+    .slice(1) // exclude the latest
+    .map(n => ({ n, col: getBallCol(n) }))
+
+  const latestBall = gameState.currentBall
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 25%, #2e0d10 0%, #180608 70%)', overflow: 'hidden' }}>
@@ -76,30 +79,33 @@ export default function GamePage() {
       {/* Top Header */}
       <div style={{ background: '#1a0708', borderBottom: '1px solid #5c1a1a', padding: '8px 10px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Logo */}
           <div style={{
             width: 34, height: 34, borderRadius: '50%',
             background: 'linear-gradient(135deg, #c0392b, #ff6b00)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             fontSize: 14, fontWeight: 800, color: '#D4A017', flexShrink: 0,
             border: '1.5px solid #d4a017'
-          }}>
-            🎲
-          </div>
+          }}>🎲</div>
           <div style={{ flex: 1 }}>
             <div className="font-condensed" style={{ fontSize: 12, fontWeight: 800, color: '#D4A017', letterSpacing: '0.06em', lineHeight: 1.1 }}>
               BEHERAWI BINGO
             </div>
-            <div style={{ fontSize: 9, color: '#888' }}>#2268 &nbsp;·&nbsp; @MANZU9...</div>
+            <div style={{ fontSize: 9, color: connected ? '#22c55e' : '#888' }}>
+              {connected ? '● LIVE' : '○ CONNECTING...'}
+              &nbsp;·&nbsp;
+              {gameState.phase === 'waiting'
+                ? `STARTS IN ${formatCountdown(gameState.countdown)}`
+                : gameState.phase === 'playing'
+                ? `${gameState.calledBalls.length}/75 BALLS`
+                : 'ROUND OVER'}
+            </div>
           </div>
-          {/* Stat chips */}
           <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-            <StatChip label="CALLED" value={phase === 'waiting' ? '0/75' : '7/75'} />
-            <StatChip label="BALANC..." value="0" />
-            <StatChip label="PRIZE P..." value="656" accent="#D4A017" />
+            <StatChip label="PLAYERS" value={String(gameState.playerCount)} />
+            <StatChip label="CALLED" value={`${gameState.calledBalls.length}/75`} />
+            <StatChip label="PRIZE" value={`${gameState.netPrizePool}`} accent="#D4A017" />
             <button
               onClick={() => setMuted(m => !m)}
-              title={muted ? 'Unmute' : 'Mute'}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: muted ? '#e53e3e' : '#888', fontSize: 16, padding: '2px 4px' }}
             >
               {muted ? '🔇' : '🔊'}
@@ -117,17 +123,17 @@ export default function GamePage() {
               className="dashed-circle"
               style={{
                 width: 62, height: 62, flexShrink: 0,
-                ...(phase === 'active' && LATEST_BALL ? {
+                ...(latestBall ? {
                   background: 'linear-gradient(135deg, #c0392b, #ff6b00)',
                   border: '2px solid #ff8c00',
                   boxShadow: '0 0 16px rgba(255,107,0,0.5)',
                 } : {}),
               }}
             >
-              {phase === 'active' && LATEST_BALL ? (
+              {latestBall ? (
                 <div style={{ textAlign: 'center' }}>
-                  <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{LATEST_BALL}</div>
-                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>O</div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{latestBall}</div>
+                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.7)', fontWeight: 600 }}>{getBallCol(latestBall)}</div>
                 </div>
               ) : (
                 <div style={{ width: 16, height: 3, background: '#5c1a1a', borderRadius: 2 }} />
@@ -137,23 +143,27 @@ export default function GamePage() {
             <div style={{ flex: 1 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 4 }}>
                 <span style={{ fontSize: 12 }}>⚙️</span>
-                <span className="font-condensed" style={{ fontSize: 12, fontWeight: 700, color: '#fff', letterSpacing: '0.04em' }}>DRAWN BALL</span>
+                <span className="font-condensed" style={{ fontSize: 12, fontWeight: 700, color: '#fff', letterSpacing: '0.04em' }}>
+                  {gameState.phase === 'waiting' ? 'WAITING FOR PLAYERS' : 'DRAWN BALL'}
+                </span>
               </div>
               <div style={{ fontSize: 11, color: '#888', marginBottom: 8 }}>
-                {phase === 'active' ? `Column O • #${LATEST_BALL}` : 'Awaiting draw...'}
+                {gameState.phase === 'waiting'
+                  ? `ዙር ይጀምራል... ${formatCountdown(gameState.countdown)}`
+                  : latestBall
+                  ? `Column ${getBallCol(latestBall)} • #${latestBall}`
+                  : 'Awaiting draw...'}
               </div>
               {/* Recent balls */}
-              {phase === 'active' && (
+              {recentBalls.length > 0 && (
                 <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-                  {RECENT_BALLS.slice(0, -1).reverse().map((b, i) => (
+                  {recentBalls.map((b, i) => (
                     <div key={i} style={{
                       width: 26, height: 26, borderRadius: '50%',
                       background: COL_BADGE_COLORS[b.col] || '#333',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontSize: 9, fontWeight: 700, color: '#fff', flexShrink: 0,
-                    }}>
-                      {b.n}
-                    </div>
+                    }}>{b.n}</div>
                   ))}
                 </div>
               )}
@@ -162,18 +172,18 @@ export default function GamePage() {
         </div>
       </div>
 
-      {/* Main game area — two columns */}
+      {/* Main game area */}
       <div style={{ flex: 1, display: 'flex', gap: 8, padding: '10px 12px 12px', overflow: 'hidden' }}>
 
         {/* Left: Your Cartelas */}
         <div style={{ flex: 1.1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          <div className="game-card" style={{ flex: 1, padding: '10px 10px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div className="game-card" style={{ flex: 1, padding: '10px', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
               <span style={{ fontSize: 12 }}>🎴</span>
               <span className="font-condensed" style={{ fontSize: 11, fontWeight: 700, color: '#D4A017', letterSpacing: '0.04em' }}>
                 YOUR CARTELAS ({selectedSlots.length})
               </span>
-              {selectedSlots.length > 0 && (
+              {selectedSlots.length > 0 && gameState.phase === 'playing' && (
                 <span style={{
                   background: '#166534', border: '1px solid #22c55e',
                   borderRadius: 4, padding: '1px 6px',
@@ -183,21 +193,13 @@ export default function GamePage() {
             </div>
 
             {selectedSlots.length === 0 ? (
-              /* Empty state */
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 8 }}>
-                <svg width="38" height="32" viewBox="0 0 56 46" fill="none">
-                  <path d="M4 38 L10 14 L20 26 L28 6 L36 26 L46 14 L52 38 Z" fill="none" stroke="#5c1a1a" strokeWidth="2" strokeLinejoin="round"/>
-                  <rect x="2" y="38" width="52" height="6" rx="2" fill="#5c1a1a" />
-                </svg>
                 <div style={{ fontSize: 13, fontWeight: 700, color: '#D4A017', lineHeight: 1.4 }}>
-                  እባክዎን ዙሩ<br />እስኪጠናቀቅ ድረስ<br />ይጠብቁ
+                  ካርቴላ አልተመረጠም
                 </div>
-                <div style={{ fontSize: 10, color: '#888', lineHeight: 1.5 }}>
-                  ጨዋታዎ እንዲሳቅ የሚቀጠለወን ዙሩ<br />መጫወት ይችላሉ።
-                </div>
+                <div style={{ fontSize: 10, color: '#888' }}>ወደ ስሎት ይሂዱ</div>
               </div>
             ) : (
-              /* Show selected cartelas */
               <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 10 }}>
                 {selectedSlots.map((slotNum, idx) => {
                   const card = CARTELAS[slotNum - 1]
@@ -205,19 +207,14 @@ export default function GamePage() {
                   return (
                     <div key={slotNum} style={{ flexShrink: 0 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                        <span style={{ fontSize: 9, fontWeight: 700, color: '#888', letterSpacing: '0.04em' }}>CARTELA {idx + 1}</span>
+                        <span style={{ fontSize: 9, fontWeight: 700, color: '#888' }}>CARTELA {idx + 1}</span>
                         <span style={{ fontSize: 10, fontWeight: 800, color: '#D4A017' }}>#{slotNum}</span>
                       </div>
-                      {/* Column headers */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, marginBottom: 2 }}>
                         {COLS.map(c => (
-                          <div key={c} style={{
-                            textAlign: 'center', fontSize: 8, fontWeight: 800,
-                            color: '#D4A017', letterSpacing: '0.04em',
-                          }}>{c}</div>
+                          <div key={c} style={{ textAlign: 'center', fontSize: 8, fontWeight: 800, color: '#D4A017' }}>{c}</div>
                         ))}
                       </div>
-                      {/* 5x5 grid */}
                       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2 }}>
                         {card.map((row, r) =>
                           row.map((num, c) => {
@@ -238,6 +235,7 @@ export default function GamePage() {
                                 fontWeight: 700,
                                 color: '#fff',
                                 lineHeight: 1,
+                                transition: 'background 0.3s',
                               }}>
                                 {isFree ? '★' : num}
                               </div>
@@ -268,38 +266,30 @@ export default function GamePage() {
               </span>
             </div>
 
-            {/* BINGO header row */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2, marginBottom: 2 }}>
               {BINGO_COLS.map(col => (
                 <div key={col} style={{
                   background: COL_BADGE_COLORS[col],
                   borderRadius: 3,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  padding: '3px 0',
-                  fontSize: 11, fontWeight: 900, color: '#fff',
-                  letterSpacing: '0.04em',
-                }}>
-                  {col}
-                </div>
+                  padding: '3px 0', fontSize: 11, fontWeight: 900, color: '#fff',
+                }}>{col}</div>
               ))}
             </div>
 
-            {/* Number grid — 15 rows */}
             <div style={{ flex: 1, overflow: 'hidden', display: 'grid', gridTemplateRows: 'repeat(15, 1fr)', gap: 2 }}>
               {Array.from({ length: 15 }, (_, row) => (
                 <div key={row} style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: 2 }}>
                   {BINGO_COLS.map(col => {
                     const num = getMatrixCell(col, row + 1)
                     const isCalled = calledSet.has(num)
-                    const isLatest = num === LATEST_BALL
+                    const isLatest = num === latestBall
                     return (
                       <div
                         key={col}
                         className={`ball-cell${isCalled ? (isLatest ? ' latest' : ' called') : ''}`}
                         style={{ fontSize: 10 }}
-                      >
-                        {num}
-                      </div>
+                      >{num}</div>
                     )
                   })}
                 </div>
@@ -309,33 +299,23 @@ export default function GamePage() {
         </div>
       </div>
 
-      {/* Toggle demo button */}
-      <div style={{ padding: '0 12px 24px', flexShrink: 0 }}>
-        <button
-          onClick={() => setPhase(p => p === 'waiting' ? 'active' : 'waiting')}
-          style={{
-            width: '100%', padding: '12px', borderRadius: 50,
-            background: '#250d0d', border: '1px solid #5c1a1a',
-            color: '#888', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            fontFamily: 'Oswald, sans-serif', letterSpacing: '0.06em',
-          }}
-        >
-          TOGGLE: {phase === 'waiting' ? 'WAITING → ACTIVE' : 'ACTIVE → WAITING'}
-        </button>
-
-        <button
-          onClick={() => navigate('/winner')}
-          style={{
-            width: '100%', marginTop: 8, padding: '12px',
-            background: 'linear-gradient(to right, #c0392b, #ff6b00)',
-            border: 'none', borderRadius: 50,
-            color: '#fff', fontSize: 14, fontWeight: 800, cursor: 'pointer',
-            fontFamily: 'Barlow Condensed, sans-serif', letterSpacing: '0.1em',
-          }}
-        >
-          → SEE WINNER SCREEN
-        </button>
-      </div>
+      {/* Winner overlay */}
+      {winner && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 100,
+          background: 'rgba(0,0,0,0.85)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12,
+        }}>
+          <div style={{ fontSize: 52 }}>🏆</div>
+          <div className="font-condensed" style={{ fontSize: 28, fontWeight: 900, color: '#D4A017', textAlign: 'center' }}>
+            BINGO!
+          </div>
+          <div style={{ fontSize: 14, color: '#fff', fontWeight: 700 }}>
+            {winner.winners[0]?.firstName ?? 'Winner'} wins {winner.prizePerWinner} ETB
+          </div>
+          <div style={{ fontSize: 11, color: '#888' }}>ወደ ዊነር ስክሪን እየሄደ ነው...</div>
+        </div>
+      )}
     </div>
   )
 }
