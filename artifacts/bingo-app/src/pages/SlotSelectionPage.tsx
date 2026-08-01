@@ -2,8 +2,8 @@ import { useState, useEffect } from 'react'
 import { useLocation } from 'wouter'
 import { CARTELAS } from '../data/cartelas'
 
-// Numbers that are already taken (highlighted/drawn) — cannot be selected
-const HIGHLIGHTED = new Set([146, 147, 153, 158, 160, 168, 174, 180, 23, 45, 67, 89, 112, 134, 200, 215, 230, 250, 278, 310, 340, 360, 390, 420, 450, 480])
+// Numbers that are already taken — populated from server data at runtime
+const HIGHLIGHTED = new Set<number>([])
 
 export default function SlotSelectionPage() {
   const [, navigate] = useLocation()
