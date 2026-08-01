@@ -287,12 +287,12 @@ bot.command("start", async (ctx) => {
       ...(playUrl ? [{ text: "🎮 Play Game (ካፈት)", web_app: { url: playUrl } }] : [{ text: "🎮 Play Game (ካፈት)", callback_data: `cmd_noplay_${user.id}` }]),
     ],
     [
-      { text: "🏦 Add Funds (ገንዘብ አስገቡ)", callback_data: `cmd_deposit_${user.id}` },
-      { text: "💵 Cash Out (ወጡ)", callback_data: `cmd_withdraw_${user.id}` },
+      { text: "🏦 Add Funds (ገቢ)", callback_data: `cmd_deposit_${user.id}` },
+      { text: "💵 Cash Out (ወጪ)", callback_data: `cmd_withdraw_${user.id}` },
     ],
     [
       { text: "📊 My Balance (ቀሪ ሂሳብ)", callback_data: `cmd_balance_${user.id}` },
-      { text: "🤝 Refer & Earn (ጋብዙ)", callback_data: `cmd_invite_${user.id}` },
+      { text: "🤝 Refer & Earn (ይጋብዙ)", callback_data: `cmd_invite_${user.id}` },
     ],
     [
       { text: "📜 How to Play (መመሪያ)", callback_data: `cmd_howtoplay_${user.id}` },
@@ -379,12 +379,12 @@ bot.command("start", async (ctx) => {
       const fallbackKb = [
         [{ text: "🎮 Play Game (ካፈት)", callback_data: `cmd_noplay_${user.id}` }],
         [
-          { text: "🏦 Add Funds (ገንዘብ አስገቡ)", callback_data: `cmd_deposit_${user.id}` },
-          { text: "💵 Cash Out (ወጡ)", callback_data: `cmd_withdraw_${user.id}` },
+          { text: "🏦 Add Funds (ገቢ)", callback_data: `cmd_deposit_${user.id}` },
+          { text: "💵 Cash Out (ወጪ)", callback_data: `cmd_withdraw_${user.id}` },
         ],
         [
           { text: "📊 My Balance (ቀሪ ሂሳብ)", callback_data: `cmd_balance_${user.id}` },
-          { text: "🤝 Refer & Earn (ጋብዙ)", callback_data: `cmd_invite_${user.id}` },
+          { text: "🤝 Refer & Earn (ይጋብዙ)", callback_data: `cmd_invite_${user.id}` },
         ],
         [
           { text: "📜 How to Play (መመሪያ)", callback_data: `cmd_howtoplay_${user.id}` },
