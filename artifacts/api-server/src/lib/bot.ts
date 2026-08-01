@@ -684,7 +684,7 @@ bot.callbackQuery(/^cmd_noplay_(\d+)$/, async (ctx) => {
 
 // ── Transfer button ────────────────────────────────────────────────────────────
 // Simple peer-to-peer balance transfer via Telegram username or ID
-const transferSessions = new Map<number, { step: "target" | "amount"; target: string; targetId: number }>();
+const transferSessions = new Map<number, { step: "type" | "target" | "amount"; type: "etb" | "coins"; target: string; targetId: number }>();
 
 // ── Session helper ─────────────────────────────────────────────────────────────
 // Call this before starting ANY new session so stale sessions from other flows
@@ -703,10 +703,37 @@ bot.callbackQuery(/^cmd_transfer_(\d+)$/, async (ctx) => {
   if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
   await ctx.answerCallbackQuery();
   clearAllSessions(userId);
-  transferSessions.set(userId, { step: "target", target: "", targetId: 0 });
+  transferSessions.set(userId, { step: "type", type: "etb", target: "", targetId: 0 });
   await ctx.reply(
-    `🔄 ባላንስ ማስተላለፍ\n\n` +
-    `🔄 ባላንስ ሊያስተላልፉለት የሚፈልጉትን ተጫዋቸ @username ወይም Telegram ID ያስገቡ ።`
+    `🔄 <b>ማስተላለፊያ አይነት ይምረጡ</b>\n\n` +
+    `💰 <b>ETB</b> — ከጨዋታ ማሸነፊያ ብር (ማውጣት የሚቻል)\n` +
+    `🪙 <b>Coins</b> — ዲፖዚት / ቦነስ ኮይን (ለጨዋታ ብቻ)\n\n` +
+    `ቢያንስ <b>50</b> ሊላኩ ይቻላል።`,
+    {
+      parse_mode: "HTML",
+      reply_markup: {
+        inline_keyboard: [[
+          { text: "💰 ETB", callback_data: `cmd_tr_type_etb_${userId}` },
+          { text: "🪙 Coins", callback_data: `cmd_tr_type_coins_${userId}` },
+        ]],
+      },
+    }
+  );
+});
+
+bot.callbackQuery(/^cmd_tr_type_(etb|coins)_(\d+)$/, async (ctx) => {
+  const type = ctx.match[1] as "etb" | "coins";
+  const userId = Number(ctx.match[2]);
+  if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
+  await ctx.answerCallbackQuery();
+  const session = transferSessions.get(userId);
+  if (!session || session.step !== "type") return;
+  session.type = type;
+  session.step = "target";
+  transferSessions.set(userId, session);
+  await ctx.reply(
+    `${type === "etb" ? "💰 ETB" : "🪙 Coins"} ትራንስፈር\n\n` +
+    `ሊያስተላልፉለት የሚፈልጉትን ተጫዋቸ @username ወይም Telegram ID ያስጊቡ:`
   );
 });
 
@@ -1446,8 +1473,9 @@ bot.on("message:text", async (ctx) => {
         trSession.targetId = targetId;
         trSession.step = "amount";
         transferSessions.set(user.id, trSession);
+        const typeLabel = trSession.type === "coins" ? "🪙 Coins" : "💰 ETB";
         await ctx.reply(
-          `✅ ተቀባይ: <b>${trSession.target}</b>\n\n💰 ማስተላለፍ የሚፈልጉትን <b>መጠን (ብር)</b> ያስጊቡ:`,
+          `✅ ተቀባይ: <b>${trSession.target}</b>\n\n${typeLabel} ማስተላለፍ የሚፈልጉትን <b>መጠን</b> ያስጊቡ (ቢያንስ <b>50</b>):`,
           { parse_mode: "HTML" }
         );
       } catch (err) { logger.error({ err }, "transfer target lookup error"); await ctx.reply("❌ ስህተት ተፈጥሯል።"); transferSessions.delete(user.id); }
@@ -1455,38 +1483,45 @@ bot.on("message:text", async (ctx) => {
     }
     if (trSession.step === "amount") {
       const amount = Number(text);
-      if (isNaN(amount) || amount < 10) { await ctx.reply("⚠️ ቢያንስ 10 ብር ያስጊቡ:"); return; }
+      if (isNaN(amount) || amount < 50) { await ctx.reply("⚠️ ቢያንስ 50 ያስጊቡ:"); return; }
+      const isCoins = trSession.type === "coins";
+      const typeLabel = isCoins ? "🪙 Coins" : "💰 ETB";
       try {
         const senderRows = await db.select({ balance: playersTable.balance, playBalance: playersTable.playBalance })
           .from(playersTable).where(eq(playersTable.telegramId, user.id)).limit(1);
         if (!senderRows.length) { await ctx.reply("❌ አካውንት አልተገኘም።"); transferSessions.delete(user.id); return; }
-        const senderBalance = Number(senderRows[0]!.balance);
-        const senderPlay = Number(senderRows[0]!.playBalance);
-        const withdrawable = Math.max(senderBalance - senderPlay, 0);
-        if (amount > withdrawable) {
+        const available = isCoins
+          ? Number(senderRows[0]!.playBalance)
+          : Number(senderRows[0]!.balance);
+        if (amount > available) {
           await ctx.reply(
-            `❌ በቂ ባላንስ የለም።\n💸 ማስተላለፍ የሚቻል: <b>${withdrawable.toFixed(2)} ብር</b>`,
+            `❌ በቂ ${typeLabel} የለም።\n💸 ማስተላለፍ የሚቻል: <b>${available.toFixed(2)} ${isCoins ? "Coins" : "ብር"}</b>`,
             { parse_mode: "HTML" }
           );
           transferSessions.delete(user.id);
           return;
         }
-        // Deduct from sender, credit receiver
-        await db.update(playersTable).set({ balance: sql`${playersTable.balance} - ${amount}` }).where(eq(playersTable.telegramId, user.id));
-        await db.update(playersTable).set({ balance: sql`${playersTable.balance} + ${amount}` }).where(eq(playersTable.telegramId, trSession.targetId));
-        await db.insert(transactionsTable).values({ telegramId: user.id, type: "transfer_out", amount: `${amount}`, status: "approved", note: `Transfer to ${trSession.target} (${trSession.targetId})` });
-        await db.insert(transactionsTable).values({ telegramId: trSession.targetId, type: "transfer_in", amount: `${amount}`, status: "approved", note: `Transfer from ${user.first_name} (${user.id})` });
+        // Deduct from sender, credit receiver (use the correct column)
+        if (isCoins) {
+          await db.update(playersTable).set({ playBalance: sql`${playersTable.playBalance} - ${amount}` }).where(eq(playersTable.telegramId, user.id));
+          await db.update(playersTable).set({ playBalance: sql`${playersTable.playBalance} + ${amount}` }).where(eq(playersTable.telegramId, trSession.targetId));
+        } else {
+          await db.update(playersTable).set({ balance: sql`${playersTable.balance} - ${amount}` }).where(eq(playersTable.telegramId, user.id));
+          await db.update(playersTable).set({ balance: sql`${playersTable.balance} + ${amount}` }).where(eq(playersTable.telegramId, trSession.targetId));
+        }
+        await db.insert(transactionsTable).values({ telegramId: user.id, type: "transfer_out", amount: `${amount}`, status: "approved", note: `Transfer ${trSession.type} to ${trSession.target} (${trSession.targetId})` });
+        await db.insert(transactionsTable).values({ telegramId: trSession.targetId, type: "transfer_in", amount: `${amount}`, status: "approved", note: `Transfer ${trSession.type} from ${user.first_name} (${user.id})` });
         await ctx.reply(
-          `✅ <b>ማስተላለፊያ ተጠናቅቋል!</b>\n\n💸 <b>${amount} ብር</b> ወደ <b>${trSession.target}</b> ተልኳል!`,
+          `✅ <b>ማስተላለፊያ ተጠናቅቋል!</b>\n\n${typeLabel} <b>${amount}</b> ወደ <b>${trSession.target}</b> ተልኳል!`,
           { parse_mode: "HTML" }
         );
         try {
           await bot.api.sendMessage(trSession.targetId,
-            `💰 <b>ብር ደረሰዎ!</b>\n\n${user.first_name} <b>${amount} ብር</b> ልኮልዎታል!\n\n🎮 ጨዋታ ይጫወቱ!`,
+            `${typeLabel} <b>ደረሰዎ!</b>\n\n${user.first_name} <b>${amount} ${isCoins ? "Coins" : "ብር"}</b> ልኮልዎታል!\n\n🎮 ጨዋታ ይጫወቱ!`,
             { parse_mode: "HTML" }
           );
         } catch { /* non-fatal */ }
-        logger.info({ from: user.id, to: trSession.targetId, amount }, "Transfer completed");
+        logger.info({ from: user.id, to: trSession.targetId, amount, type: trSession.type }, "Transfer completed");
       } catch (err) { logger.error({ err }, "transfer amount error"); await ctx.reply("❌ ስህተት ተፈጥሯል።"); }
       transferSessions.delete(user.id);
       return;
