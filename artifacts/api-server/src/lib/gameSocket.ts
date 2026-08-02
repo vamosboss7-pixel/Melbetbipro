@@ -42,7 +42,7 @@ export function setupGameSocket(httpServer: HttpServer) {
     });
 
     socket.on("deselect_card", (cardId: number) => {
-      gameEngine10?.handleDeselectCard(socket, cardId);
+      void gameEngine10?.handleDeselectCard(socket, cardId);
     });
 
     socket.on("claim_bingo", (data: { roundId: string; cardId: number; card: number[][] }) => {

@@ -36,6 +36,7 @@ export interface BroadcastState {
   netPrizePool: number;
   calledBalls: number[];
   currentBall: number | null;
+  jackpotPool: number;
 }
 
 export interface RoomConfig {
@@ -107,6 +108,8 @@ export class GameEngine {
   private winners: Winner[];
   private claimedThisRound: Set<number>;
 
+  private jackpotPool = 0;
+
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
   private ballTimer: ReturnType<typeof setInterval> | null = null;
   private finishedTimer: ReturnType<typeof setTimeout> | null = null;
@@ -130,6 +133,7 @@ export class GameEngine {
     this.currentBall = null;
     this.winners = [];
     this.claimedThisRound = new Set();
+    void this.initJackpotPool();
     this.startCountdown();
     logger.info({ roundId: this.roundId, namespace: ns ?? "/" }, "Game engine started");
   }
@@ -254,18 +258,12 @@ export class GameEngine {
     this.broadcastState();
     logger.info({ roundId: this.roundId, participants: this.roundParticipants.size }, "Game started");
 
+    // Stake was already deducted per-card at selection time.
+    // We only record the transaction here for the audit trail.
     for (const [telegramId, participant] of this.roundParticipants) {
       const stake = participant.cardIds.length * stakePerCard;
+      if (stake <= 0) continue;
       try {
-        // Stake is deducted from coins (playBalance) only.
-        // ETB balance (game winnings) is never touched by staking.
-        const rows = await db.update(playersTable)
-          .set({
-            playBalance: sql`GREATEST(${playersTable.playBalance} - ${stake}, 0)`,
-          })
-          .where(eq(playersTable.telegramId, telegramId))
-          .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
-
         await db.insert(transactionsTable).values({
           telegramId,
           type: "stake",
@@ -273,16 +271,8 @@ export class GameEngine {
           status: "approved",
           note: `Stake for round ${this.roundId.slice(0, 8).toUpperCase()}`,
         });
-
-        const connectedPlayer = this.findConnectedPlayer(telegramId);
-        if (connectedPlayer && rows[0]) {
-          this.ns.to(connectedPlayer.socketId).emit("balance_update", {
-            balance: rows[0].balance,
-            playBalance: rows[0].playBalance,
-          });
-        }
       } catch (err) {
-        logger.error({ err, telegramId }, "Failed to deduct stake");
+        logger.error({ err, telegramId }, "Failed to record stake transaction");
       }
     }
 
@@ -555,6 +545,8 @@ export class GameEngine {
       batchNumber = result.txBatchNumber;
       gameCount = result.txGameCount;
       currentPool = result.txCurrentPool;
+      // Keep in-memory cache up-to-date so broadcastState() sends live jackpot.
+      this.jackpotPool = currentPool;
 
     } catch (err: unknown) {
       // A duplicate roundId means this round was already processed — safe to skip.
@@ -676,6 +668,8 @@ export class GameEngine {
         isActive: true,
       });
 
+      // New batch starts at 0
+      this.jackpotPool = 0;
       logger.info({ batchNumber, currentPool, winners: prizes.length }, "Jackpot distributed, new batch started");
 
       // Announce in channel(s)
@@ -743,6 +737,20 @@ export class GameEngine {
     if (this.finishedTimer) { clearTimeout(this.finishedTimer); this.finishedTimer = null; }
   }
 
+  private async initJackpotPool(): Promise<void> {
+    try {
+      const rows = await db
+        .select({ jackpotPool: jackpotBatchesTable.jackpotPool })
+        .from(jackpotBatchesTable)
+        .where(eq(jackpotBatchesTable.isActive, true))
+        .orderBy(desc(jackpotBatchesTable.id))
+        .limit(1);
+      this.jackpotPool = rows[0] ? Number(rows[0].jackpotPool) : 0;
+    } catch (err) {
+      logger.error({ err }, "Failed to init jackpot pool");
+    }
+  }
+
   private broadcastState() {
     const stakePerCard = this.cfgStakePerCard();
     const commissionPct = this.cfgCommissionPercent();
@@ -772,6 +780,7 @@ export class GameEngine {
       netPrizePool,
       calledBalls: [...this.calledBalls],
       currentBall: this.currentBall,
+      jackpotPool: this.jackpotPool,
     };
     this.ns.emit("game_state", state);
   }
@@ -908,8 +917,9 @@ export class GameEngine {
     if (this.getAllTakenCardIds().includes(cardId)) return;
 
     const stakePerCard = this.cfgStakePerCard();
-    const neededStake = (player.cardIds.length + 1) * stakePerCard;
-    // Only check balance when there's an actual stake requirement
+    // Only check balance when there's an actual stake requirement.
+    // We check exactly stakePerCard (for this one card) because previous cards
+    // were already deducted at selection time.
     if (stakePerCard > 0) {
       try {
         // Check coin balance (playBalance) — stakes are paid in coins, not ETB.
@@ -920,9 +930,9 @@ export class GameEngine {
           .limit(1);
 
         const balance = rows[0] ? Number(rows[0].playBalance) : 0;
-        if (balance < neededStake) {
+        if (balance < stakePerCard) {
           socket.emit("select_card_error", {
-            message: `ካርድ ለመምረጥ ቢያንስ ${neededStake} ኮይን ያስፈልጋል። የአሁን ኮይን: ${balance.toFixed(2)}`,
+            message: `ካርድ ለመምረጥ ቢያንስ ${stakePerCard} ኮይን ያስፈልጋል። የአሁን ኮይን: ${balance.toFixed(2)}`,
             balance: balance.toFixed(2),
           });
           return;
@@ -943,17 +953,61 @@ export class GameEngine {
 
     player.cardIds.push(cardId);
     this.persistentCards.set(player.telegramId, { firstName: player.firstName, cardIds: [...player.cardIds] });
+
+    // Deduct stake immediately so the UI reflects the cost right away.
+    if (stakePerCard > 0) {
+      try {
+        const updatedRows = await db
+          .update(playersTable)
+          .set({ playBalance: sql`GREATEST(${playersTable.playBalance} - ${stakePerCard}, 0)` })
+          .where(eq(playersTable.telegramId, player.telegramId))
+          .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
+        if (updatedRows[0]) {
+          socket.emit("balance_update", {
+            balance: updatedRows[0].balance,
+            playBalance: updatedRows[0].playBalance,
+          });
+        }
+      } catch (err) {
+        logger.error({ err, telegramId: player.telegramId }, "Failed to deduct stake on card selection");
+      }
+    }
+
     socket.emit("my_cards", { cardIds: player.cardIds });
     this.broadcastTakenCards();
+    this.broadcastState();
   }
 
-  handleDeselectCard(socket: Socket, cardId: number) {
+  async handleDeselectCard(socket: Socket, cardId: number) {
     const player = this.players.get(socket.id);
     if (!player) return;
+    if (!player.cardIds.includes(cardId)) return;
     player.cardIds = player.cardIds.filter(id => id !== cardId);
     this.persistentCards.set(player.telegramId, { firstName: player.firstName, cardIds: [...player.cardIds] });
+
+    // Refund the stake for the removed card immediately.
+    const stakePerCard = this.cfgStakePerCard();
+    if (stakePerCard > 0) {
+      try {
+        const updatedRows = await db
+          .update(playersTable)
+          .set({ playBalance: sql`${playersTable.playBalance} + ${stakePerCard}` })
+          .where(eq(playersTable.telegramId, player.telegramId))
+          .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
+        if (updatedRows[0]) {
+          socket.emit("balance_update", {
+            balance: updatedRows[0].balance,
+            playBalance: updatedRows[0].playBalance,
+          });
+        }
+      } catch (err) {
+        logger.error({ err, telegramId: player.telegramId }, "Failed to refund stake on card deselection");
+      }
+    }
+
     socket.emit("my_cards", { cardIds: player.cardIds });
     this.broadcastTakenCards();
+    this.broadcastState();
   }
 
   handleDisconnect(socketId: string) {

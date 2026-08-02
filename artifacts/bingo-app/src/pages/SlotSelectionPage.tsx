@@ -43,9 +43,10 @@ export default function SlotSelectionPage() {
 
     socket.on('connect', emitJoin)
 
-    socket.on('game_state', (state: GameState) => {
+    socket.on('game_state', (state: GameState & { jackpotPool?: number }) => {
       setServerCountdown(state.countdown)
       setGamePhase(state.phase)
+      if (state.jackpotPool != null) setJackpotPool(Number(state.jackpotPool).toFixed(2))
     })
 
     // When a round resets, clear local card selection too

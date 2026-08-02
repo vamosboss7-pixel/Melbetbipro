@@ -42,14 +42,12 @@ export default function GamePage() {
     } catch { return [] }
   })
 
-  const [jackpotPool, setJackpotPool] = useState<string>('0.00')
   const [jackpotGame, setJackpotGame] = useState<number>(0)
 
   useEffect(() => {
     fetch('/api/jackpot/status')
       .then(r => r.json())
       .then((data: { pool: number; gameNumber: number }) => {
-        setJackpotPool(Number(data.pool ?? 0).toFixed(2))
         setJackpotGame(Number(data.gameNumber ?? 0))
       })
       .catch(() => {/* ignore */})
@@ -308,7 +306,7 @@ export default function GamePage() {
                   background: 'linear-gradient(90deg, #FFD700, #FFA500)',
                   WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
                   lineHeight: 1,
-                }}>{jackpotPool} ETB</div>
+                }}>{gameState.jackpotPool.toFixed(2)} ETB</div>
                 <div style={{ fontSize: 8, color: '#888', marginTop: 1 }}>Game #{jackpotGame}</div>
               </div>
             </div>
