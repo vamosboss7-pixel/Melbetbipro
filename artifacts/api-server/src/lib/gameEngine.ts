@@ -862,6 +862,7 @@ export class GameEngine {
       netPrizePool: prizePool - commissionAmount,
       calledBalls: [...this.calledBalls],
       currentBall: this.currentBall,
+      jackpotPool: this.jackpotPool,
     });
 
     if (cardIds.length > 0) {
@@ -917,62 +918,73 @@ export class GameEngine {
     if (this.getAllTakenCardIds().includes(cardId)) return;
 
     const stakePerCard = this.cfgStakePerCard();
-    // Only check balance when there's an actual stake requirement.
-    // We check exactly stakePerCard (for this one card) because previous cards
-    // were already deducted at selection time.
+    // Atomically deduct stakePerCard and check balance in one UPDATE.
+    // If play_balance < stakePerCard the WHERE clause won't match — 0 rows
+    // returned — so we reject without touching card state. This also prevents
+    // double-spend when the same player opens two tabs simultaneously.
     if (stakePerCard > 0) {
-      try {
-        // Check coin balance (playBalance) — stakes are paid in coins, not ETB.
-        const rows = await db
-          .select({ playBalance: playersTable.playBalance })
-          .from(playersTable)
-          .where(eq(playersTable.telegramId, player.telegramId))
-          .limit(1);
-
-        const balance = rows[0] ? Number(rows[0].playBalance) : 0;
-        if (balance < stakePerCard) {
-          socket.emit("select_card_error", {
-            message: `ካርድ ለመምረጥ ቢያንስ ${stakePerCard} ኮይን ያስፈልጋል። የአሁን ኮይን: ${balance.toFixed(2)}`,
-            balance: balance.toFixed(2),
-          });
-          return;
-        }
-      } catch (err) {
-        logger.error({ err, telegramId: player.telegramId }, "Failed to check balance for card selection");
-        socket.emit("select_card_error", { message: "ስህተት ተፈጥሯል። እንደገና ይሞክሩ።", balance: "0" });
-        return;
-      }
-    }
-
-    // Re-check atomically after the async boundary. Two concurrent requests can
-    // both pass the pre-await checks above (Node.js is single-threaded but yields
-    // at every `await`). Re-checking here — before any state mutation — is
-    // atomic: nothing else can run between this point and the push below.
-    if (player.cardIds.includes(cardId)) return;
-    if (this.getAllTakenCardIds().includes(cardId)) return;
-
-    player.cardIds.push(cardId);
-    this.persistentCards.set(player.telegramId, { firstName: player.firstName, cardIds: [...player.cardIds] });
-
-    // Deduct stake immediately so the UI reflects the cost right away.
-    if (stakePerCard > 0) {
+      let deducted = false;
       try {
         const updatedRows = await db
           .update(playersTable)
-          .set({ playBalance: sql`GREATEST(${playersTable.playBalance} - ${stakePerCard}, 0)` })
-          .where(eq(playersTable.telegramId, player.telegramId))
+          .set({ playBalance: sql`${playersTable.playBalance} - ${stakePerCard}` })
+          .where(
+            and(
+              eq(playersTable.telegramId, player.telegramId),
+              sql`${playersTable.playBalance} >= ${stakePerCard}`,
+            ),
+          )
           .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
-        if (updatedRows[0]) {
-          socket.emit("balance_update", {
-            balance: updatedRows[0].balance,
-            playBalance: updatedRows[0].playBalance,
+
+        if (!updatedRows[0]) {
+          // Balance was insufficient (or concurrent deduction already consumed it).
+          const balRows = await db
+            .select({ playBalance: playersTable.playBalance })
+            .from(playersTable)
+            .where(eq(playersTable.telegramId, player.telegramId))
+            .limit(1);
+          const bal = balRows[0] ? Number(balRows[0].playBalance) : 0;
+          socket.emit("select_card_error", {
+            message: `ካርድ ለመምረጥ ቢያንስ ${stakePerCard} ኮይን ያስፈልጋል። የአሁን ኮይን: ${bal.toFixed(2)}`,
+            balance: bal.toFixed(2),
           });
+          return;
         }
+
+        // Deduction succeeded — emit updated balance immediately.
+        socket.emit("balance_update", {
+          balance: updatedRows[0].balance,
+          playBalance: updatedRows[0].playBalance,
+        });
+        deducted = true;
       } catch (err) {
         logger.error({ err, telegramId: player.telegramId }, "Failed to deduct stake on card selection");
+        socket.emit("select_card_error", { message: "ስህተት ተፈጥሯል። እንደገና ይሞክሩ።", balance: "0" });
+        return;
       }
+      if (!deducted) return;
     }
 
+    // Re-check atomically after the async boundary (two concurrent awaits above
+    // could both have passed the pre-await guards).
+    if (player.cardIds.includes(cardId)) return;
+    if (this.getAllTakenCardIds().includes(cardId)) {
+      // Card was grabbed by another player while we were deducting — refund.
+      if (stakePerCard > 0) {
+        try {
+          const refund = await db
+            .update(playersTable)
+            .set({ playBalance: sql`${playersTable.playBalance} + ${stakePerCard}` })
+            .where(eq(playersTable.telegramId, player.telegramId))
+            .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
+          if (refund[0]) socket.emit("balance_update", { balance: refund[0].balance, playBalance: refund[0].playBalance });
+        } catch (e) { logger.error({ e }, "Failed to refund after lost race"); }
+      }
+      return;
+    }
+
+    player.cardIds.push(cardId);
+    this.persistentCards.set(player.telegramId, { firstName: player.firstName, cardIds: [...player.cardIds] });
     socket.emit("my_cards", { cardIds: player.cardIds });
     this.broadcastTakenCards();
     this.broadcastState();
@@ -1030,6 +1042,7 @@ export class GameEngine {
       netPrizePool: this.computeNetPrizePool(),
       calledBalls: [...this.calledBalls],
       currentBall: this.currentBall,
+      jackpotPool: this.jackpotPool,
     };
   }
 

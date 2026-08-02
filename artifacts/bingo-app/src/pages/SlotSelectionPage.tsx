@@ -20,6 +20,8 @@ export default function SlotSelectionPage() {
   const [stakePerCard, setStakePerCard] = useState<number>(0)
   const [showNoBalance, setShowNoBalance] = useState(false)
   const { player } = usePlayer()
+  // Live play-balance updated immediately via balance_update socket events
+  const [livePlayBalance, setLivePlayBalance] = useState<number | null>(null)
 
   // ── Server-side state ─────────────────────────────────────────────────────
   const [serverCountdown, setServerCountdown] = useState<number>(30)
@@ -47,6 +49,10 @@ export default function SlotSelectionPage() {
       setServerCountdown(state.countdown)
       setGamePhase(state.phase)
       if (state.jackpotPool != null) setJackpotPool(Number(state.jackpotPool).toFixed(2))
+    })
+
+    socket.on('balance_update', (data: { balance: string; playBalance: string }) => {
+      setLivePlayBalance(parseFloat(data.playBalance))
     })
 
     // When a round resets, clear local card selection too
@@ -94,10 +100,9 @@ export default function SlotSelectionPage() {
 
   // ── Balance helpers ───────────────────────────────────────────────────────
   // With the coin model, staking is paid from playBalance (coins).
-  // player.balance = ETB game winnings (withdrawable only).
-  const totalBalanceNum = player
-    ? parseFloat(player.playBalance)
-    : 0
+  // livePlayBalance is kept current via balance_update socket events so card
+  // selection/deselection instantly reflects the real balance.
+  const totalBalanceNum = livePlayBalance ?? (player ? parseFloat(player.playBalance) : 0)
 
   const canAfford = (wantCount: number) => {
     if (stakePerCard <= 0) return true
@@ -137,7 +142,7 @@ export default function SlotSelectionPage() {
     ? (player.username ? `@${player.username}` : player.firstName)
     : '...'
 
-  const totalBalance = player ? totalBalanceNum.toFixed(2) : '—'
+  const totalBalance = (player || livePlayBalance !== null) ? totalBalanceNum.toFixed(2) : '—'
 
   // Show a dimmed overlay when game is in progress and this player has no cards
   const waitingForNextRound = gamePhase === 'playing' && selectedSlots.length === 0

@@ -236,18 +236,14 @@ async function ensureTablesExist() {
         GROUP BY batch_id, telegram_id
       )
     `);
-    // Add unique constraint to existing tables that were created without it
-    await db.execute(sql`
-      DO $$
-      BEGIN
-        IF NOT EXISTS (
-          SELECT 1 FROM pg_constraint WHERE conname = 'jackpot_points_batch_player_uidx'
-        ) THEN
-          ALTER TABLE jackpot_points
-            ADD CONSTRAINT jackpot_points_batch_player_uidx UNIQUE (batch_id, telegram_id);
-        END IF;
-      END$$
-    `);
+    // Add unique constraint idempotently — swallow any error; drizzle-kit push
+    // already ensures it exists, so failure here just means it's already there.
+    try {
+      await db.execute(sql`
+        ALTER TABLE jackpot_points
+          ADD CONSTRAINT jackpot_points_batch_player_uidx UNIQUE (batch_id, telegram_id)
+      `);
+    } catch { /* already exists — ok */ }
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS jackpot_round_log (
         round_id TEXT PRIMARY KEY,
