@@ -37,8 +37,11 @@ router.get("/player/wallet", async (req: Request, res: Response) => {
       .limit(50);
 
     res.json({
-      balance: player.balance,
-      playBalance: player.playBalance,
+      mainBalance: player.mainBalance,
+      bonusBalance: player.bonusBalance,
+      wageringRequired: player.wageringRequired,
+      wageringCompleted: player.wageringCompleted,
+      hasActiveWagering: player.hasActiveWagering,
       totalInviteBonus: player.totalInviteBonus,
       role: player.role,
       agentBalance: player.agentBalance,
@@ -279,12 +282,12 @@ router.post("/player/agent-transfer", async (req: Request, res: Response) => {
     if (agentBal < amount) {
       res.status(400).json({ error: "Agent balance ይቀነሳሉ — ብቂ ሂሳብ የለም" }); return;
     }
-    // Deduct from agentBalance and credit play wallet atomically
+    // Deduct from agentBalance and credit mainBalance atomically
     await db
       .update(playersTable)
       .set({
         agentBalance: sql`${playersTable.agentBalance} - ${amount}`,
-        balance: sql`${playersTable.balance} + ${amount}`,
+        mainBalance: sql`${playersTable.mainBalance} + ${amount}`,
       })
       .where(eq(playersTable.telegramId, telegramId));
     // Log transaction
@@ -293,7 +296,7 @@ router.post("/player/agent-transfer", async (req: Request, res: Response) => {
       type: "agent_transfer",
       amount: `${amount}`,
       status: "approved",
-      note: `Agent balance → Play wallet: ${amount} ብር`,
+      note: `Agent balance → Main wallet: ${amount} ብር`,
     });
     logger.info({ telegramId, amount }, "Agent balance transferred to play wallet");
     res.json({ ok: true, transferred: amount });

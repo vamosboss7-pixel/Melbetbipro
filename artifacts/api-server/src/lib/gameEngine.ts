@@ -107,6 +107,10 @@ export class GameEngine {
   private currentBall: number | null;
   private winners: Winner[];
   private claimedThisRound: Set<number>;
+  // Tracks exact per-card deductions {main, bonus} for proportional refunds on deselect.
+  private cardDeductions: Map<number, Map<number, { main: number; bonus: number }>>;
+  // Aggregated per-player deduction totals for the current round (used for win logic and maintenance refunds).
+  private roundDeductions: Map<number, { main: number; bonus: number }>;
 
   private jackpotPool = 0;
 
@@ -133,6 +137,8 @@ export class GameEngine {
     this.currentBall = null;
     this.winners = [];
     this.claimedThisRound = new Set();
+    this.cardDeductions = new Map();
+    this.roundDeductions = new Map();
     this.startCountdown();
     logger.info({ roundId: this.roundId, namespace: ns ?? "/" }, "Game engine started");
   }
@@ -389,10 +395,50 @@ export class GameEngine {
         });
 
         if (isWinner && prize > 0) {
-          const winRows = await db.update(playersTable)
-            .set({ balance: sql`${playersTable.balance} + ${prize}` })
-            .where(eq(playersTable.telegramId, telegramId))
-            .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
+          const playerRoundDeduction = this.roundDeductions.get(telegramId);
+          const usedBonus = (playerRoundDeduction?.bonus ?? 0) > 0;
+          let updatedBalances: { mainBalance: string; bonusBalance: string } | null = null;
+
+          if (usedBonus) {
+            // Win from bonus-funded game → credit bonusBalance + apply wagering logic
+            updatedBalances = await db.transaction(async (tx) => {
+              const [playerRow] = await tx
+                .select({ hasActiveWagering: playersTable.hasActiveWagering })
+                .from(playersTable)
+                .where(eq(playersTable.telegramId, telegramId))
+                .limit(1);
+              if (!playerRow) return null;
+
+              if (!playerRow.hasActiveWagering) {
+                // First win using bonus — activate 10× wagering requirement
+                const wagerRequired = prize * 10;
+                const [updated] = await tx.update(playersTable)
+                  .set({
+                    bonusBalance: sql`${playersTable.bonusBalance} + ${prize}`,
+                    wageringRequired: `${wagerRequired}`,
+                    wageringCompleted: "0.00",
+                    hasActiveWagering: true,
+                  })
+                  .where(eq(playersTable.telegramId, telegramId))
+                  .returning({ mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance });
+                return updated ?? null;
+              } else {
+                // Subsequent win — add to bonusBalance only
+                const [updated] = await tx.update(playersTable)
+                  .set({ bonusBalance: sql`${playersTable.bonusBalance} + ${prize}` })
+                  .where(eq(playersTable.telegramId, telegramId))
+                  .returning({ mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance });
+                return updated ?? null;
+              }
+            });
+          } else {
+            // Win from main-balance-funded game → credit mainBalance
+            const [updated] = await db.update(playersTable)
+              .set({ mainBalance: sql`${playersTable.mainBalance} + ${prize}` })
+              .where(eq(playersTable.telegramId, telegramId))
+              .returning({ mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance });
+            updatedBalances = updated ?? null;
+          }
 
           await db.insert(transactionsTable).values({
             telegramId,
@@ -403,11 +449,27 @@ export class GameEngine {
           });
 
           const connectedPlayer = this.findConnectedPlayer(telegramId);
-          if (connectedPlayer && winRows[0]) {
+          if (connectedPlayer && updatedBalances) {
             this.ns.to(connectedPlayer.socketId).emit("balance_update", {
-              balance: winRows[0].balance,
-              playBalance: winRows[0].playBalance,
+              mainBalance: updatedBalances.mainBalance,
+              bonusBalance: updatedBalances.bonusBalance,
             });
+          }
+        } else if (!isWinner) {
+          // Zero balance reset: if loser's bonusBalance is now 0, clear wagering state
+          try {
+            const [playerRow] = await db
+              .select({ bonusBalance: playersTable.bonusBalance })
+              .from(playersTable)
+              .where(eq(playersTable.telegramId, telegramId))
+              .limit(1);
+            if (Number(playerRow?.bonusBalance ?? 1) === 0) {
+              await db.update(playersTable)
+                .set({ wageringRequired: "0.00", wageringCompleted: "0.00", hasActiveWagering: false })
+                .where(eq(playersTable.telegramId, telegramId));
+            }
+          } catch (zeroErr) {
+            logger.error({ zeroErr, telegramId }, "Failed zero balance reset check for loser");
           }
         }
       } catch (err) {
@@ -643,7 +705,7 @@ export class GameEngine {
           try {
             await db
               .update(playersTable)
-              .set({ balance: sql`${playersTable.balance} + ${prize}` })
+              .set({ mainBalance: sql`${playersTable.mainBalance} + ${prize}` })
               .where(eq(playersTable.telegramId, player.telegramId));
 
             await db.insert(transactionsTable).values({
@@ -726,6 +788,8 @@ export class GameEngine {
 
     this.persistentCards.clear();
     this.roundParticipants.clear();
+    this.cardDeductions.clear();
+    this.roundDeductions.clear();
 
     for (const player of this.players.values()) {
       player.cardIds = [];
@@ -829,12 +893,14 @@ export class GameEngine {
       // Only check balance when there's an actual stake requirement
       if (stakePerCard > 0) {
         try {
-          // Check coin balance (playBalance) — stakes are paid in coins, not ETB.
-          const rows = await db.select({ playBalance: playersTable.playBalance })
+          // Check combined ETB balance (mainBalance + bonusBalance) — stakes are paid in ETB.
+          const rows = await db.select({ mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance })
             .from(playersTable).where(eq(playersTable.telegramId, telegramId)).limit(1);
-          const balance = rows[0] ? Number(rows[0].playBalance) : 0;
+          const mainBal = rows[0] ? Number(rows[0].mainBalance) : 0;
+          const bonusBal = rows[0] ? Number(rows[0].bonusBalance) : 0;
+          const balance = mainBal + bonusBal;
           if (balance < stakePerCard) {
-            const msg = `ጨዋታ ለመቀላቀል ቢያንስ ${stakePerCard} ኮይን ያስፈልጋል። አሁን ያለዎ ኮይን: ${balance.toFixed(2)}`;
+            const msg = `ጨዋታ ለመቀላቀል ቢያንስ ${stakePerCard} ብር ያስፈልጋል። አሁን ያለዎ ባላንስ: ${balance.toFixed(2)} ብር`;
             socket.emit("join_error", { message: msg });
             logger.info({ telegramId, balance, stakePerCard, namespace: this.roomCfg.namespace ?? "/" }, "join_error: insufficient balance");
             return;
@@ -937,67 +1003,122 @@ export class GameEngine {
     if (this.getAllTakenCardIds().includes(cardId)) return;
 
     const stakePerCard = this.cfgStakePerCard();
-    // Atomically deduct stakePerCard and check balance in one UPDATE.
-    // If play_balance < stakePerCard the WHERE clause won't match — 0 rows
-    // returned — so we reject without touching card state. This also prevents
-    // double-spend when the same player opens two tabs simultaneously.
+    // Deduct stakePerCard from mainBalance first, then bonusBalance for the remainder.
+    // Uses a DB transaction with FOR UPDATE to prevent concurrent double-spend.
     if (stakePerCard > 0) {
-      let deducted = false;
+      type DeductResult = { mainDeduct: number; bonusDeduct: number; mainBalance: string; bonusBalance: string };
+      let deductResult: DeductResult | null = null;
       try {
-        const updatedRows = await db
-          .update(playersTable)
-          .set({ playBalance: sql`${playersTable.playBalance} - ${stakePerCard}` })
-          .where(
-            and(
-              eq(playersTable.telegramId, player.telegramId),
-              sql`${playersTable.playBalance} >= ${stakePerCard}`,
-            ),
-          )
-          .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
+        deductResult = await db.transaction(async (tx) => {
+          const rows = await tx.execute(
+            sql`SELECT main_balance, bonus_balance, has_active_wagering FROM players WHERE telegram_id = ${player.telegramId} FOR UPDATE LIMIT 1`
+          );
+          type BalRow = { main_balance: string; bonus_balance: string; has_active_wagering: boolean };
+          const row = rows.rows[0] as BalRow | undefined;
+          if (!row) return null;
 
-        if (!updatedRows[0]) {
-          // Balance was insufficient (or concurrent deduction already consumed it).
-          const balRows = await db
-            .select({ playBalance: playersTable.playBalance })
-            .from(playersTable)
+          const mainBal = Number(row.main_balance);
+          const bonusBal = Number(row.bonus_balance);
+          if (mainBal + bonusBal < stakePerCard) return null;
+
+          const mainDeduct = Math.min(mainBal, stakePerCard);
+          const bonusDeduct = stakePerCard - mainDeduct;
+
+          // Build update object — always deduct mainBalance; conditionally deduct bonusBalance
+          // and track wagering progress if wagering is active.
+          const updateSet: Record<string, unknown> = {
+            mainBalance: sql`${playersTable.mainBalance} - ${mainDeduct}`,
+          };
+          if (bonusDeduct > 0) {
+            updateSet["bonusBalance"] = sql`${playersTable.bonusBalance} - ${bonusDeduct}`;
+            if (row.has_active_wagering) {
+              updateSet["wageringCompleted"] = sql`${playersTable.wageringCompleted} + ${bonusDeduct}`;
+            }
+          }
+
+          const [updated] = await tx.update(playersTable)
+            .set(updateSet)
             .where(eq(playersTable.telegramId, player.telegramId))
-            .limit(1);
-          const bal = balRows[0] ? Number(balRows[0].playBalance) : 0;
-          socket.emit("select_card_error", {
-            message: `ካርድ ለመምረጥ ቢያንስ ${stakePerCard} ኮይን ያስፈልጋል። የአሁን ኮይን: ${bal.toFixed(2)}`,
-            balance: bal.toFixed(2),
-          });
-          return;
-        }
+            .returning({ mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance });
 
-        // Deduction succeeded — emit updated balance immediately.
-        socket.emit("balance_update", {
-          balance: updatedRows[0].balance,
-          playBalance: updatedRows[0].playBalance,
+          if (!updated) return null;
+          return { mainDeduct, bonusDeduct, mainBalance: updated.mainBalance, bonusBalance: updated.bonusBalance };
         });
-        deducted = true;
       } catch (err) {
         logger.error({ err, telegramId: player.telegramId }, "Failed to deduct stake on card selection");
-        socket.emit("select_card_error", { message: "ስህተት ተፈጥሯል። እንደገና ይሞክሩ።", balance: "0" });
+        socket.emit("select_card_error", { message: "ስህተት ተፈጥሯል። እንደገና ይሞክሩ።", mainBalance: "0", bonusBalance: "0" });
         return;
       }
-      if (!deducted) return;
+
+      if (!deductResult) {
+        const balRows = await db
+          .select({ mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance })
+          .from(playersTable)
+          .where(eq(playersTable.telegramId, player.telegramId))
+          .limit(1);
+        const mainBal = Number(balRows[0]?.mainBalance ?? 0);
+        const bonusBal = Number(balRows[0]?.bonusBalance ?? 0);
+        socket.emit("select_card_error", {
+          message: `ካርድ ለመምረጥ ቢያንስ ${stakePerCard} ብር ያስፈልጋል። አሁን ያለዎ ባላንስ: ${(mainBal + bonusBal).toFixed(2)} ብር`,
+          mainBalance: mainBal.toFixed(2),
+          bonusBalance: bonusBal.toFixed(2),
+        });
+        return;
+      }
+
+      // Track deductions per card (for exact refunds) and aggregate for round win logic
+      if (!this.cardDeductions.has(player.telegramId)) {
+        this.cardDeductions.set(player.telegramId, new Map());
+      }
+      this.cardDeductions.get(player.telegramId)!.set(cardId, { main: deductResult.mainDeduct, bonus: deductResult.bonusDeduct });
+      const prevRound = this.roundDeductions.get(player.telegramId) ?? { main: 0, bonus: 0 };
+      this.roundDeductions.set(player.telegramId, {
+        main: prevRound.main + deductResult.mainDeduct,
+        bonus: prevRound.bonus + deductResult.bonusDeduct,
+      });
+
+      // Zero balance reset: if bonusBalance hits 0, clear wagering state
+      if (Number(deductResult.bonusBalance) === 0) {
+        try {
+          await db.update(playersTable)
+            .set({ wageringRequired: "0.00", wageringCompleted: "0.00", hasActiveWagering: false })
+            .where(eq(playersTable.telegramId, player.telegramId));
+        } catch (err) {
+          logger.error({ err }, "Failed wagering reset on zero bonus balance");
+        }
+      }
+
+      // Emit updated balances immediately
+      socket.emit("balance_update", {
+        mainBalance: deductResult.mainBalance,
+        bonusBalance: deductResult.bonusBalance,
+      });
     }
 
-    // Re-check atomically after the async boundary (two concurrent awaits above
-    // could both have passed the pre-await guards).
+    // Re-check atomically after the async boundary.
     if (player.cardIds.includes(cardId)) return;
     if (this.getAllTakenCardIds().includes(cardId)) {
       // Card was grabbed by another player while we were deducting — refund.
       if (stakePerCard > 0) {
-        try {
-          const refund = await db
-            .update(playersTable)
-            .set({ playBalance: sql`${playersTable.playBalance} + ${stakePerCard}` })
-            .where(eq(playersTable.telegramId, player.telegramId))
-            .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
-          if (refund[0]) socket.emit("balance_update", { balance: refund[0].balance, playBalance: refund[0].playBalance });
-        } catch (e) { logger.error({ e }, "Failed to refund after lost race"); }
+        const deduction = this.cardDeductions.get(player.telegramId)?.get(cardId);
+        if (deduction) {
+          try {
+            const refund = await db.update(playersTable)
+              .set({
+                mainBalance: sql`${playersTable.mainBalance} + ${deduction.main}`,
+                bonusBalance: sql`${playersTable.bonusBalance} + ${deduction.bonus}`,
+              })
+              .where(eq(playersTable.telegramId, player.telegramId))
+              .returning({ mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance });
+            this.cardDeductions.get(player.telegramId)?.delete(cardId);
+            const prevRound = this.roundDeductions.get(player.telegramId) ?? { main: 0, bonus: 0 };
+            this.roundDeductions.set(player.telegramId, {
+              main: prevRound.main - deduction.main,
+              bonus: prevRound.bonus - deduction.bonus,
+            });
+            if (refund[0]) socket.emit("balance_update", { mainBalance: refund[0].mainBalance, bonusBalance: refund[0].bonusBalance });
+          } catch (e) { logger.error({ e }, "Failed to refund after lost card race"); }
+        }
       }
       return;
     }
@@ -1016,19 +1137,35 @@ export class GameEngine {
     player.cardIds = player.cardIds.filter(id => id !== cardId);
     this.persistentCards.set(player.telegramId, { firstName: player.firstName, cardIds: [...player.cardIds] });
 
-    // Refund the stake for the removed card immediately.
+    // Refund the exact amounts (main + bonus) that were deducted for this card.
     const stakePerCard = this.cfgStakePerCard();
     if (stakePerCard > 0) {
+      const deduction = this.cardDeductions.get(player.telegramId)?.get(cardId);
+      const mainRefund = deduction?.main ?? stakePerCard;
+      const bonusRefund = deduction?.bonus ?? 0;
+
       try {
-        const updatedRows = await db
-          .update(playersTable)
-          .set({ playBalance: sql`${playersTable.playBalance} + ${stakePerCard}` })
+        const updatedRows = await db.update(playersTable)
+          .set({
+            mainBalance: sql`${playersTable.mainBalance} + ${mainRefund}`,
+            bonusBalance: sql`${playersTable.bonusBalance} + ${bonusRefund}`,
+          })
           .where(eq(playersTable.telegramId, player.telegramId))
-          .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
+          .returning({ mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance });
+
+        if (deduction) {
+          this.cardDeductions.get(player.telegramId)?.delete(cardId);
+          const prevRound = this.roundDeductions.get(player.telegramId) ?? { main: 0, bonus: 0 };
+          this.roundDeductions.set(player.telegramId, {
+            main: prevRound.main - deduction.main,
+            bonus: prevRound.bonus - deduction.bonus,
+          });
+        }
+
         if (updatedRows[0]) {
           socket.emit("balance_update", {
-            balance: updatedRows[0].balance,
-            playBalance: updatedRows[0].playBalance,
+            mainBalance: updatedRows[0].mainBalance,
+            bonusBalance: updatedRows[0].bonusBalance,
           });
         }
       } catch (err) {
@@ -1118,13 +1255,18 @@ export class GameEngine {
         const refundAmount = participant.cardIds.length * stakePerCard;
         if (refundAmount <= 0) continue;
         try {
+          // Refund proportionally — use tracked deductions if available
+          const deduction = this.roundDeductions.get(telegramId);
+          const mainRefund = deduction?.main ?? refundAmount;
+          const bonusRefund = deduction?.bonus ?? 0;
+
           const updated = await db.update(playersTable)
             .set({
-              balance: sql`${playersTable.balance} + ${refundAmount}`,
-              playBalance: sql`${playersTable.playBalance} + ${refundAmount}`,
+              mainBalance: sql`${playersTable.mainBalance} + ${mainRefund}`,
+              bonusBalance: sql`${playersTable.bonusBalance} + ${bonusRefund}`,
             })
             .where(eq(playersTable.telegramId, telegramId))
-            .returning({ balance: playersTable.balance, playBalance: playersTable.playBalance });
+            .returning({ mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance });
 
           await db.insert(transactionsTable).values({
             telegramId,
@@ -1137,8 +1279,8 @@ export class GameEngine {
           const connected = this.findConnectedPlayer(telegramId);
           if (connected && updated[0]) {
             this.ns.to(connected.socketId).emit("balance_update", {
-              balance: updated[0].balance,
-              playBalance: updated[0].playBalance,
+              mainBalance: updated[0].mainBalance,
+              bonusBalance: updated[0].bonusBalance,
             });
           }
           refunded++;

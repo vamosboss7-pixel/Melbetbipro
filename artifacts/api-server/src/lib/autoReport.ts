@@ -22,7 +22,7 @@ export async function generateReport(): Promise<string> {
   const totalDeposited = approvedDeposits.reduce((s, d) => s + Number(d.amount), 0);
   const totalWithdrawn = approvedWithdrawals.reduce((s, w) => s + Number(w.amount), 0);
   const netRevenue = totalDeposited - totalWithdrawn;
-  const totalBalance = players.reduce((s, p) => s + Number(p.balance), 0);
+  const totalBalance = players.reduce((s, p) => s + Number(p.mainBalance) + Number(p.bonusBalance), 0);
 
   const todayStart = new Date();
   todayStart.setHours(0, 0, 0, 0);

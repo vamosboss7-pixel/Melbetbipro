@@ -126,7 +126,7 @@ router.get("/admin/stats", async (req: Request, res: Response) => {
       // Player stats via SQL aggregates — no full table scan into memory
       db.select({
         total: sql<number>`COUNT(*)::int`,
-        totalBalance: sql<string>`COALESCE(SUM(balance::numeric),0)`,
+        totalBalance: sql<string>`COALESCE(SUM(main_balance::numeric),0)`,
         totalReferred: sql<number>`COUNT(*) FILTER (WHERE invited_by IS NOT NULL)::int`,
         totalAgents: sql<number>`COUNT(*) FILTER (WHERE role = 'agent')::int`,
       }).from(playersTable),
@@ -227,7 +227,7 @@ router.get("/admin/players", async (req: Request, res: Response) => {
   try {
     const [players, totalRow] = await Promise.all([
       db.select().from(playersTable)
-        .orderBy(desc(playersTable.balance))
+        .orderBy(desc(playersTable.mainBalance))
         .limit(pageSize)
         .offset(page * pageSize),
       db.select({ total: sql<number>`COUNT(*)::int` }).from(playersTable),
@@ -249,13 +249,13 @@ router.post("/admin/deposit/:id/approve", async (req: Request, res: Response) =>
     if (!rows.length || rows[0]!.status !== "pending") { res.status(400).json({ error: "Not found or already processed" }); return; }
     const dep = rows[0]!;
     await db.update(pendingDepositsTable).set({ status: "approved", updatedAt: new Date() }).where(eq(pendingDepositsTable.id, depositId));
-    // Deposits go to coins (playBalance) only — ETB balance is for game winnings only.
+    // Deposits go to main_balance — real deposited ETB, withdrawable.
     await db.update(playersTable).set({
-      playBalance: sql`${playersTable.playBalance} + ${dep.amount}`,
+      mainBalance: sql`${playersTable.mainBalance} + ${dep.amount}`,
     }).where(eq(playersTable.telegramId, dep.telegramId));
     await db.insert(transactionsTable).values({ telegramId: dep.telegramId, type: "deposit", amount: dep.amount, status: "approved", note: `Deposit #${dep.id} approved` });
     try {
-      await bot.api.sendMessage(dep.telegramId, `✅ ዲፖዚት ተፈቅዷል!\n\n🪙 <b>${Number(dep.amount).toFixed(0)} ኮይን</b> ወደ Play Wallet ተጨምሯል!\n🧾 Ref: #${dep.id}\n\n🎱 አሁን ይጫወቱ!`, { parse_mode: "HTML" });
+      await bot.api.sendMessage(dep.telegramId, `✅ ዲፖዚት ተፈቅዷል!\n\n💰 <b>${Number(dep.amount).toFixed(0)} ብር</b> ወደ Main Wallet ተጨምሯል!\n🧾 Ref: #${dep.id}\n\n🎱 አሁን ይጫወቱ!`, { parse_mode: "HTML" });
     } catch (e) { logger.warn({ e }, "Failed to notify user"); }
     logger.info({ depositId }, "Deposit approved via admin panel");
     void grantInviteBonus(dep.telegramId, Number(dep.amount));
@@ -325,7 +325,7 @@ router.post("/admin/withdrawal/:id/reject", async (req: Request, res: Response) 
     if (isAgentWithdrawal) {
       await db.update(playersTable).set({ agentBalance: sql`${playersTable.agentBalance} + ${w.amount}` }).where(eq(playersTable.telegramId, w.telegramId));
     } else {
-      await db.update(playersTable).set({ balance: sql`${playersTable.balance} + ${w.amount}` }).where(eq(playersTable.telegramId, w.telegramId));
+      await db.update(playersTable).set({ mainBalance: sql`${playersTable.mainBalance} + ${w.amount}` }).where(eq(playersTable.telegramId, w.telegramId));
     }
     await db.insert(transactionsTable).values({ telegramId: w.telegramId, type: "withdrawal_refund", amount: w.amount, status: "approved", note: `Withdrawal #${w.id} rejected — refunded` });
     try {
@@ -416,7 +416,7 @@ router.post("/admin/players/:telegramId/grant-invite-bonus", async (req: Request
     if (bonus <= 0) { res.status(400).json({ error: "Bonus amount is zero — check inviteBonusPercent setting" }); return; }
 
     await db.update(playersTable).set({
-      balance: sql`${playersTable.balance} + ${bonus}`,
+      bonusBalance: sql`${playersTable.bonusBalance} + ${bonus}`,
       totalInviteBonus: sql`${playersTable.totalInviteBonus} + ${bonus}`,
     }).where(eq(playersTable.telegramId, invitedBy));
 
@@ -615,12 +615,11 @@ router.post("/admin/players/balance-adjust", async (req: Request, res: Response)
       await creditPlayerBalance(targetTelegramId, delta, adjustNote);
     } else {
       const deduct = Math.abs(delta);
-      if (Number(player.balance) < deduct) {
-        res.status(400).json({ error: "Insufficient balance" }); return;
+      if (Number(player.mainBalance) < deduct) {
+        res.status(400).json({ error: "Insufficient main balance" }); return;
       }
       await db.update(playersTable).set({
-        balance: sql`${playersTable.balance} - ${deduct}`,
-        playBalance: sql`GREATEST(${playersTable.playBalance} - ${deduct}, 0)`,
+        mainBalance: sql`${playersTable.mainBalance} - ${deduct}`,
       }).where(eq(playersTable.telegramId, targetTelegramId));
       await db.insert(transactionsTable).values({
         telegramId: targetTelegramId, type: "adjustment", amount: `${deduct}`,
@@ -629,7 +628,7 @@ router.post("/admin/players/balance-adjust", async (req: Request, res: Response)
     }
 
     const updated = await db.select().from(playersTable).where(eq(playersTable.telegramId, targetTelegramId)).limit(1);
-    const newBalance = Number(updated[0]?.balance ?? 0);
+    const newBalance = Number(updated[0]?.mainBalance ?? 0);
 
     try {
       await bot.api.sendMessage(

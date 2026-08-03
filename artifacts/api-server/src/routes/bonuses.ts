@@ -167,10 +167,10 @@ router.post("/player/checkin", async (req: Request, res: Response) => {
         });
       }
 
-      // Credit playBalance (non-withdrawable) atomically inside same transaction
+      // Credit bonusBalance — daily check-in rewards are bonus ETB
       await tx
         .update(playersTable)
-        .set({ playBalance: sql`${playersTable.playBalance} + ${reward}` })
+        .set({ bonusBalance: sql`${playersTable.bonusBalance} + ${reward}` })
         .where(eq(playersTable.telegramId, telegramId));
 
       // Ledger entry

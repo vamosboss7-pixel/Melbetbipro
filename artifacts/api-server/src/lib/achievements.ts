@@ -1,6 +1,6 @@
 /**
  * Achievement definitions and auto-award logic.
- * Bonuses are credited to playBalance (non-withdrawable game credits).
+ * Bonuses are credited to bonusBalance (subject to wagering requirement before withdrawal).
  *
  * Concurrency safety:
  * - DB-level uniqueness: player_achievements has a unique index on
@@ -164,11 +164,11 @@ export async function checkAndAwardAchievements(
             achievementId: ach.id,
           });
 
-          // Credit playBalance (non-withdrawable game credits)
+          // Credit bonusBalance — achievement rewards are bonus ETB
           await tx
             .update(playersTable)
             .set({
-              playBalance: sql`${playersTable.playBalance} + ${ach.rewardETB}`,
+              bonusBalance: sql`${playersTable.bonusBalance} + ${ach.rewardETB}`,
             })
             .where(eq(playersTable.telegramId, telegramId));
 

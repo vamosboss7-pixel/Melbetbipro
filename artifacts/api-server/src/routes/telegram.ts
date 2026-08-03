@@ -222,27 +222,22 @@ router.post("/auth/telegram", async (req: Request, res: Response) => {
         void grantAgentJoinBonus(validReferrer, tgUser.first_name);
       }
 
-      // Grant registration bonus if enabled
-      if (appSettings.getBool("registerBonusEnabled")) {
-        const bonusAmount = appSettings.getNum("registerBonusAmount");
-        if (bonusAmount > 0) {
-          // Registration bonus goes to coins (playBalance) — not withdrawable ETB.
-          await db.update(playersTable).set({
-            playBalance: sql`${playersTable.playBalance} + ${bonusAmount}`,
-          }).where(eq(playersTable.telegramId, tgUser.id));
-          await db.insert(transactionsTable).values({
-            telegramId: tgUser.id,
-            type: "register_bonus",
-            amount: `${bonusAmount}`,
-            status: "approved",
-            note: "የምዝገባ ቦነስ",
-          });
-          // Refresh player data with updated balance
-          const refreshed = await db.select().from(playersTable).where(eq(playersTable.telegramId, tgUser.id)).limit(1);
-          player = refreshed[0] ?? player;
-          logger.info({ telegramId: tgUser.id, bonusAmount }, "Register bonus granted");
-        }
-      }
+      // Grant 20 ETB registration bonus to bonusBalance (always — non-withdrawable until wagering met)
+      const SIGNUP_BONUS_ETB = 20;
+      await db.update(playersTable).set({
+        bonusBalance: sql`${playersTable.bonusBalance} + ${SIGNUP_BONUS_ETB}`,
+      }).where(eq(playersTable.telegramId, tgUser.id));
+      await db.insert(transactionsTable).values({
+        telegramId: tgUser.id,
+        type: "register_bonus",
+        amount: `${SIGNUP_BONUS_ETB}`,
+        status: "approved",
+        note: "20 ብር የምዝገባ ቦነስ (Bonus Balance)",
+      });
+      // Refresh player data with updated balance
+      const refreshed = await db.select().from(playersTable).where(eq(playersTable.telegramId, tgUser.id)).limit(1);
+      player = refreshed[0] ?? player;
+      logger.info({ telegramId: tgUser.id, bonusAmount: SIGNUP_BONUS_ETB }, "Signup bonus granted to bonusBalance");
     }
 
     res.json({
@@ -253,8 +248,11 @@ router.post("/auth/telegram", async (req: Request, res: Response) => {
         lastName: player!.lastName,
         username: player!.username,
         photoUrl: player!.photoUrl,
-        balance: player!.balance,
-        playBalance: player!.playBalance,
+        mainBalance: player!.mainBalance,
+        bonusBalance: player!.bonusBalance,
+        wageringRequired: player!.wageringRequired,
+        wageringCompleted: player!.wageringCompleted,
+        hasActiveWagering: player!.hasActiveWagering,
         invitedBy: player!.invitedBy ?? null,
         role: player!.role,
       },

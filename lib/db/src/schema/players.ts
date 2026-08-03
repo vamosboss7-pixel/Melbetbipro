@@ -9,8 +9,15 @@ export const playersTable = pgTable("players", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name"),
   photoUrl: text("photo_url"),
-  balance: numeric("balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
-  playBalance: numeric("play_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  // Main balance: real deposited ETB, withdrawable.
+  mainBalance: numeric("main_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  // Bonus balance: registration bonus, promo credits, and winnings earned from bonus funds.
+  // Non-withdrawable until wagering requirement is met.
+  bonusBalance: numeric("bonus_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  // Wagering fields — track rollover requirement before bonus can be withdrawn.
+  wageringRequired: numeric("wagering_required", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  wageringCompleted: numeric("wagering_completed", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  hasActiveWagering: boolean("has_active_wagering").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   invitedBy: bigint("invited_by", { mode: "number" }),
   totalInviteBonus: numeric("total_invite_bonus", { precision: 12, scale: 2 }).notNull().default("0.00"),
