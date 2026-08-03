@@ -2,7 +2,7 @@ import { createServer } from "http";
 import app from "./app";
 import { logger } from "./lib/logger";
 import { bot } from "./lib/bot";
-import { setupGameSocket } from "./lib/gameSocket";
+import { setupGameSocket, initGameEngines } from "./lib/gameSocket";
 import { appSettings } from "./lib/settings";
 import { startAutoReportCron } from "./lib/autoReport";
 import { startAutoScheduleCron } from "./lib/autoSchedule";
@@ -337,6 +337,12 @@ httpServer.listen(port, (err?: Error) => {
       await ensureTablesExist();
     } catch (tableErr) {
       logger.error({ err: tableErr }, "ensureTablesExist failed — continuing");
+    }
+
+    try {
+      await initGameEngines();
+    } catch (jeErr) {
+      logger.error({ err: jeErr }, "initGameEngines failed — jackpot pool will start at 0");
     }
 
     startAutoReportCron();

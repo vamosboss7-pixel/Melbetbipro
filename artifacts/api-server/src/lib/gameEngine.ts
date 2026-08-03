@@ -133,7 +133,6 @@ export class GameEngine {
     this.currentBall = null;
     this.winners = [];
     this.claimedThisRound = new Set();
-    void this.initJackpotPool();
     this.startCountdown();
     logger.info({ roundId: this.roundId, namespace: ns ?? "/" }, "Game engine started");
   }
@@ -341,7 +340,7 @@ export class GameEngine {
 
     const stakePerCardW = this.cfgStakePerCard();
     const totalPoolW = [...this.roundParticipants.values()].reduce((sum, p) => sum + p.cardIds.length * stakePerCardW, 0);
-    const jackpotCutW = Math.floor(totalPoolW * 0.20);
+    const jackpotCutW = Math.round(totalPoolW * 0.20);
     const netPoolW = totalPoolW - jackpotCutW;
     const prizePerWinner = this.winners.length > 0 ? Math.floor(netPoolW / this.winners.length) : 0;
 
@@ -366,7 +365,7 @@ export class GameEngine {
 
     const totalPrizePool = [...this.roundParticipants.values()]
       .reduce((sum, p) => sum + p.cardIds.length * stakePerCard, 0);
-    const jackpotContribution = Math.floor(totalPrizePool * 0.20);
+    const jackpotContribution = Math.round(totalPrizePool * 0.20);
     const netPrizePool = totalPrizePool - jackpotContribution;
     const prizePerWinner = winnerTelegramIds.size > 0
       ? Math.floor(netPrizePool / winnerTelegramIds.size)
@@ -417,9 +416,15 @@ export class GameEngine {
     }
 
     // ── Jackpot: award points + fund pool + leaderboard/distribution ──────────
-    await this.handleJackpotLogic(roundId, this.roundParticipants, winnerTelegramIds, jackpotContribution);
-
-    this.resetRound();
+    // resetRound() runs in a finally block so a jackpot DB failure never leaves
+    // the engine stuck in "finished" phase with no way to start a new game.
+    try {
+      await this.handleJackpotLogic(roundId, this.roundParticipants, winnerTelegramIds, jackpotContribution);
+    } catch (err) {
+      logger.error({ err, roundId }, "Jackpot logic failed — round will still reset");
+    } finally {
+      this.resetRound();
+    }
   }
 
   // ── Jackpot system ────────────────────────────────────────────────────────────
@@ -556,7 +561,7 @@ export class GameEngine {
         return;
       }
       logger.error({ err, roundId }, "handleJackpotLogic error");
-      return;
+      throw err;
     }
 
     // ── 3. Post leaderboard (games 1–9) or distribute jackpot (game 10) ──────
@@ -737,17 +742,31 @@ export class GameEngine {
     if (this.finishedTimer) { clearTimeout(this.finishedTimer); this.finishedTimer = null; }
   }
 
-  private async initJackpotPool(): Promise<void> {
-    try {
-      const rows = await db
-        .select({ jackpotPool: jackpotBatchesTable.jackpotPool })
-        .from(jackpotBatchesTable)
-        .where(eq(jackpotBatchesTable.isActive, true))
-        .orderBy(desc(jackpotBatchesTable.id))
-        .limit(1);
-      this.jackpotPool = rows[0] ? Number(rows[0].jackpotPool) : 0;
-    } catch (err) {
-      logger.error({ err }, "Failed to init jackpot pool");
+  async initJackpotPool(): Promise<void> {
+    const maxAttempts = 10;
+    const delayMs = 2000;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const rows = await db
+          .select({ jackpotPool: jackpotBatchesTable.jackpotPool })
+          .from(jackpotBatchesTable)
+          .where(eq(jackpotBatchesTable.isActive, true))
+          .orderBy(desc(jackpotBatchesTable.id))
+          .limit(1);
+        this.jackpotPool = rows[0] ? Number(rows[0].jackpotPool) : 0;
+        logger.info({ jackpotPool: this.jackpotPool }, "Jackpot pool initialised");
+        return;
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        const tableNotReady = msg.includes("does not exist") || msg.includes("relation");
+        if (tableNotReady && attempt < maxAttempts) {
+          logger.warn({ attempt, maxAttempts }, "initJackpotPool: tables not ready yet, retrying…");
+          await new Promise(resolve => setTimeout(resolve, delayMs));
+        } else {
+          logger.error({ err, attempt }, "Failed to init jackpot pool");
+          throw err;
+        }
+      }
     }
   }
 
