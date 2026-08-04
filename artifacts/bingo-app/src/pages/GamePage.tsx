@@ -34,6 +34,7 @@ export default function GamePage() {
   const [, navigate] = useLocation()
   const [muted, setMuted] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
+  const ballAudioRef = useRef<HTMLAudioElement | null>(null)
 
   const [selectedSlots] = useState<number[]>(() => {
     try {
@@ -66,7 +67,7 @@ export default function GamePage() {
     }
   }, [winner, navigate])
 
-  // Audio
+  // Background music
   useEffect(() => {
     const audio = new Audio('/audio/bg-music.mp3')
     audio.loop = true
@@ -77,6 +78,31 @@ export default function GamePage() {
   }, [])
   useEffect(() => {
     if (audioRef.current) audioRef.current.muted = muted
+  }, [muted])
+
+  // Ball call audio — plays /audio/balls/{COL}{NUMBER}.mp3 on each new draw
+  useEffect(() => {
+    if (!gameState.currentBall) return
+    const col = getBallCol(gameState.currentBall)
+    const src = `/audio/balls/${col}${gameState.currentBall}.mp3`
+
+    // Stop previous ball audio if still playing
+    if (ballAudioRef.current) {
+      ballAudioRef.current.pause()
+      ballAudioRef.current.src = ''
+    }
+
+    const audio = new Audio(src)
+    audio.volume = 1.0
+    audio.muted = muted
+    ballAudioRef.current = audio
+    audio.play().catch(() => {/* file may not exist yet */})
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState.currentBall])
+
+  // Keep ball audio in sync with mute toggle
+  useEffect(() => {
+    if (ballAudioRef.current) ballAudioRef.current.muted = muted
   }, [muted])
 
   const recentBalls = [...gameState.calledBalls]
