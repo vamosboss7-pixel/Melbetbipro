@@ -483,7 +483,7 @@ export class GameEngine {
     // resetRound() runs in a finally block so a jackpot DB failure never leaves
     // the engine stuck in "finished" phase with no way to start a new game.
     try {
-      await this.handleJackpotLogic(roundId, this.roundParticipants, winnerTelegramIds, jackpotContribution);
+      await this.handleJackpotLogic(roundId, this.roundParticipants, winnerTelegramIds, jackpotContribution, this.roundDeductions);
     } catch (err) {
       logger.error({ err, roundId }, "Jackpot logic failed — round will still reset");
     } finally {
@@ -508,6 +508,7 @@ export class GameEngine {
     roundParticipants: Map<number, { firstName: string; cardIds: number[] }>,
     winnerTelegramIds: Set<number>,
     jackpotContribution: number,
+    roundDeductions: Map<number, { main: number; bonus: number }>,
   ): Promise<void> {
     let batchId: number;
     let batchNumber: number;
@@ -571,10 +572,18 @@ export class GameEngine {
         //   win bonus     = cards × 3  (if winner)
         //   streak bonus  = min(consecutive games in this batch, 8)
         //
+        // Players who used ANY bonus balance are excluded from jackpot points —
+        // bonus-funded play cannot earn jackpot eligibility.
+        //
         // INSERT … ON CONFLICT keeps per-player points safe even if the loop is
         // partially replayed, because the transaction as a whole will roll back
         // on a duplicate roundId before this code is reached a second time.
         for (const [telegramId, participant] of roundParticipants) {
+          const deduction = roundDeductions.get(telegramId);
+          if (deduction && deduction.bonus > 0) {
+            logger.info({ telegramId, bonusUsed: deduction.bonus }, "Jackpot: skipping bonus-balance player — not eligible for jackpot points");
+            continue;
+          }
           const isWinner = winnerTelegramIds.has(telegramId);
           const cards = participant.cardIds.length;
           const participationPts = cards * 4;
