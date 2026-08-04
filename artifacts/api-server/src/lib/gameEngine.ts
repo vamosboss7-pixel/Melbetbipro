@@ -739,23 +739,52 @@ export class GameEngine {
       this.jackpotPool = 0;
       logger.info({ batchNumber, currentPool, winners: prizes.length }, "Jackpot distributed, new batch started");
 
-      // Send personal DM to each winner — do NOT post to any channel
       const winnerMedals = ["🥇", "🥈", "🥉"];
       const placeNames = ["1ኛ", "2ኛ", "3ኛ"];
+      const winnerIds = new Set(prizes.map((p) => p.telegramId));
 
+      // ── 1. Personal DM to each winner ────────────────────────────────────────
       for (let i = 0; i < prizes.length; i++) {
         const p = prizes[i]!;
         if (p.prize <= 0) continue;
         const dm =
           `🎉 እንኳን ደስ አለዎት, *${p.firstName}*!\n\n` +
           `${winnerMedals[i]} ከጃክፖት ዙር #${batchNumber} *${placeNames[i]}* ቦታ አሸነፉ!\n\n` +
-          `💰 ሽልማት: *${p.prize.toFixed(2)} ETB* ወደ ሂሳብዎ ተጨምሯል።\n` +
+          `💰 ሽልማትዎ: *${p.prize.toFixed(2)} ETB* ወደ ሂሳብዎ ተጨምሯል።\n` +
           `📊 ነጥቦችዎ: ${p.points} ነጥብ\n\n` +
           `⚡ ቀጣዩ ጃክፖት ዙር ተጀምሯል! ጨዋታ ቀጥሉ!`;
         try {
           await bot.api.sendMessage(p.telegramId, dm, { parse_mode: "Markdown" });
         } catch (err) {
           logger.error({ err, telegramId: p.telegramId }, "Failed to send jackpot DM to winner");
+        }
+      }
+
+      // ── 2. General announcement to all other players ──────────────────────────
+      const winLines = prizes
+        .filter((p) => p.prize > 0)
+        .map((p, i) => `${winnerMedals[i]} *${p.firstName}* — ${p.points} ነጥብ → *${p.prize.toFixed(2)} ETB*`);
+
+      const generalMsg =
+        `🔥 *ጃክፖት ዙር #${batchNumber} ተጠናቀቀ!*\n\n` +
+        `💰 ጠቅላላ ሽልማት: *${currentPool.toFixed(2)} ETB*\n\n` +
+        `🏆 አሸናፊዎቹ:\n` +
+        winLines.join("\n") +
+        `\n\n⚡ ቀጣዩ ጃክፖት ዙር አሁን ተጀምሯል!\n🎯 ጨዋታ ቀጥሉ — ቀጣዩን ጃክፖት የእርስዎ ያድርጉ!`;
+
+      let allPlayers: { telegramId: number }[] = [];
+      try {
+        allPlayers = await db.select({ telegramId: playersTable.telegramId }).from(playersTable);
+      } catch (err) {
+        logger.error({ err }, "Failed to fetch players for jackpot broadcast");
+      }
+
+      for (const player of allPlayers) {
+        if (winnerIds.has(player.telegramId)) continue; // winners already got personal DM
+        try {
+          await bot.api.sendMessage(player.telegramId, generalMsg, { parse_mode: "Markdown" });
+        } catch {
+          // Silently skip — player may have blocked the bot
         }
       }
     } catch (err) {
