@@ -640,14 +640,14 @@ export class GameEngine {
     }
   }
 
-  /** Post a top-10 leaderboard update to the announcement channel */
+  /** Post a top-10 leaderboard update to the dedicated jackpot channel */
   private async postLeaderboardToChannel(
     batchId: number,
     batchNumber: number,
     gameCount: number,
     currentPool: number,
   ): Promise<void> {
-    const channelId = process.env["ANNOUNCEMENT_CHANNEL_ID"] ?? "";
+    const channelId = process.env["JACKPOT_CHANNEL_ID"] ?? "";
     if (!channelId) return;
 
     try {
@@ -672,9 +672,9 @@ export class GameEngine {
         `📊 ቀጣይ ዙር: ${gameCount + 1}/10`;
 
       await bot.api.sendMessage(channelId, message, { parse_mode: "Markdown" });
-      logger.info({ gameCount, batchNumber }, "Posted jackpot leaderboard to channel");
+      logger.info({ gameCount, batchNumber }, "Posted jackpot leaderboard to jackpot channel");
     } catch (err) {
-      logger.error({ err, channelId }, "Failed to post leaderboard to channel");
+      logger.error({ err, channelId }, "Failed to post leaderboard to jackpot channel");
     }
   }
 
@@ -785,6 +785,17 @@ export class GameEngine {
           await bot.api.sendMessage(player.telegramId, generalMsg, { parse_mode: "Markdown" });
         } catch {
           // Silently skip — player may have blocked the bot
+        }
+      }
+
+      // ── 3. Post final result to dedicated jackpot channel ─────────────────────
+      const jackpotChannel = process.env["JACKPOT_CHANNEL_ID"] ?? "";
+      if (jackpotChannel) {
+        try {
+          await bot.api.sendMessage(jackpotChannel, generalMsg, { parse_mode: "Markdown" });
+          logger.info({ batchNumber }, "Posted jackpot result to jackpot channel");
+        } catch (err) {
+          logger.error({ err }, "Failed to post jackpot result to jackpot channel");
         }
       }
     } catch (err) {

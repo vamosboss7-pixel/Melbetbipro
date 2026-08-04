@@ -10,7 +10,7 @@ A Telegram Mini App bingo game where players join via Telegram bot, select up to
 - `pnpm run typecheck:libs` — build composite libs (run before api-server typecheck)
 - `pnpm --filter @workspace/db run push` — push DB schema changes (dev only)
 - Required env secrets: `TELEGRAM_BOT_TOKEN`, `DATABASE_URL`
-- Optional env secrets: `MAIN_ADMIN_TELEGRAM_ID` (for balance-adjust UI), `SMS_WEBHOOK_SECRET` (security token for SMS webhook), `ANNOUNCEMENT_CHANNEL_ID` (Telegram channel ID or @username for auto-posting approved deposits/withdrawals), `LUCKY_BOX_CHANNEL_ID` (Telegram channel ID or @username for Lucky Box posts — defaults to `ANNOUNCEMENT_CHANNEL_ID` if not set), `REQUIRED_CHANNEL_IDS` (comma-separated @usernames users must join before registering, e.g. `@MelkamBingoOfficial,@MelkamBingoNews`), `GROQ_API_KEY` (Groq API key for the 🤖 AI Support bot feature — uses llama-3.1-70b-versatile)
+- Optional env secrets: `MAIN_ADMIN_TELEGRAM_ID` (for balance-adjust UI), `SMS_WEBHOOK_SECRET` (security token for SMS webhook), `ANNOUNCEMENT_CHANNEL_ID` (Telegram channel ID or @username for auto-posting approved deposits/withdrawals), `LUCKY_BOX_CHANNEL_ID` (Telegram channel ID or @username for Lucky Box posts — defaults to `ANNOUNCEMENT_CHANNEL_ID` if not set), `JACKPOT_CHANNEL_ID` (Telegram channel ID or @username for jackpot leaderboard updates and jackpot result announcements — dedicated jackpot channel, separate from `ANNOUNCEMENT_CHANNEL_ID`), `REQUIRED_CHANNEL_IDS` (comma-separated @usernames users must join before registering, e.g. `@MelkamBingoOfficial,@MelkamBingoNews`), `GROQ_API_KEY` (Groq API key for the 🤖 AI Support bot feature — uses llama-3.1-70b-versatile)
 
 ## Stack
 
