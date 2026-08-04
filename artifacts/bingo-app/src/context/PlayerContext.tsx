@@ -6,6 +6,7 @@ interface PlayerContextValue {
   loading: boolean
   error: string | null
   refresh: () => Promise<void>
+  updatePlayer: (patch: Partial<Player>) => void
 }
 
 const PlayerContext = createContext<PlayerContextValue>({
@@ -13,6 +14,7 @@ const PlayerContext = createContext<PlayerContextValue>({
   loading: true,
   error: null,
   refresh: async () => {},
+  updatePlayer: () => {},
 })
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
@@ -53,8 +55,17 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  const updatePlayer = (patch: Partial<Player>) => {
+    setPlayer(prev => {
+      if (!prev) return prev
+      const updated = { ...prev, ...patch }
+      sessionStorage.setItem('player', JSON.stringify(updated))
+      return updated
+    })
+  }
+
   return (
-    <PlayerContext.Provider value={{ player, loading, error, refresh: load }}>
+    <PlayerContext.Provider value={{ player, loading, error, refresh: load, updatePlayer }}>
       {children}
     </PlayerContext.Provider>
   )

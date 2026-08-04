@@ -24,6 +24,10 @@ export const playersTable = pgTable("players", {
   role: text("role").notNull().default("player"),
   agentBalance: numeric("agent_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
   hasClaimedChannelBonus: boolean("has_claimed_channel_bonus").notNull().default(false),
+  // Balance preference: which balance to deduct from first when paying stakes.
+  // 'main_first' (default) = deduct mainBalance first, then bonusBalance for remainder.
+  // 'bonus_first' = deduct bonusBalance first, then mainBalance for remainder.
+  preferredBalance: text("preferred_balance").notNull().default("main_first"),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });

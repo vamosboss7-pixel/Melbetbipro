@@ -5,6 +5,7 @@ import { eq, desc, count, sql, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { getBotUsername } from "../lib/bot";
 import { appSettings } from "../lib/settings";
+import { verifyTelegramInitData, extractTelegramUser } from "../lib/telegramAuth";
 
 const router: IRouter = Router();
 
@@ -302,6 +303,47 @@ router.post("/player/agent-transfer", async (req: Request, res: Response) => {
     res.json({ ok: true, transferred: amount });
   } catch (err) {
     logger.error({ err }, "agent-transfer error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// PATCH /api/player/settings — update player preferences (preferredBalance)
+// Requires Telegram WebApp initData for authentication; telegramId is derived server-side
+// from the verified token and never trusted from the request body.
+router.patch("/player/settings", async (req: Request, res: Response) => {
+  const { initData, preferredBalance } = req.body as { initData?: string; preferredBalance?: string };
+
+  if (!initData) {
+    res.status(400).json({ error: "initData is required" }); return;
+  }
+  const botToken = process.env["TELEGRAM_BOT_TOKEN"];
+  if (!botToken) {
+    res.status(500).json({ error: "Server misconfiguration" }); return;
+  }
+  const verified = verifyTelegramInitData(initData, botToken);
+  if (!verified) {
+    res.status(401).json({ error: "Invalid Telegram data" }); return;
+  }
+  const tgUser = extractTelegramUser(verified);
+  if (!tgUser) {
+    res.status(401).json({ error: "Could not extract user from initData" }); return;
+  }
+
+  if (!preferredBalance || !["main_first", "bonus_first"].includes(preferredBalance)) {
+    res.status(400).json({ error: "preferredBalance must be 'main_first' or 'bonus_first'" }); return;
+  }
+
+  try {
+    const rows = await db
+      .update(playersTable)
+      .set({ preferredBalance, updatedAt: new Date() })
+      .where(eq(playersTable.telegramId, tgUser.id))
+      .returning({ preferredBalance: playersTable.preferredBalance });
+    if (!rows.length) { res.status(404).json({ error: "Player not found" }); return; }
+    logger.info({ telegramId: tgUser.id, preferredBalance }, "Player balance preference updated");
+    res.json({ ok: true, preferredBalance: rows[0]!.preferredBalance });
+  } catch (err) {
+    logger.error({ err }, "player settings error");
     res.status(500).json({ error: "Internal server error" });
   }
 });

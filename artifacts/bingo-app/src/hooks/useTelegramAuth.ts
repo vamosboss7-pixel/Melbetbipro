@@ -12,6 +12,7 @@ export interface Player {
   wageringCompleted?: string
   hasActiveWagering?: boolean
   role: string
+  preferredBalance?: 'main_first' | 'bonus_first'
 }
 
 /**

@@ -4,8 +4,8 @@ import { bot, checkChannelMembership, grantAgentJoinBonus, USE_POLLING, pendingR
 import { db } from "../lib/db";
 import { playersTable, transactionsTable, appSettingsTable } from "@workspace/db/schema";
 import { eq, sql } from "drizzle-orm";
-import { createHmac } from "crypto";
 import { logger } from "../lib/logger";
+import { verifyTelegramInitData, extractTelegramUser } from "../lib/telegramAuth";
 import { appSettings } from "../lib/settings";
 
 const router: IRouter = Router();
@@ -16,35 +16,6 @@ const router: IRouter = Router();
 // prevent bot.start() from working.
 if (!USE_POLLING) {
   router.post("/telegram/webhook", webhookCallback(bot, "express"));
-}
-
-function verifyTelegramData(initData: string, botToken: string): Record<string, string> | null {
-  try {
-    const params = new URLSearchParams(initData);
-    const hash = params.get("hash");
-    if (!hash) return null;
-
-    params.delete("hash");
-
-    const dataCheckString = [...params.entries()]
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([k, v]) => `${k}=${v}`)
-      .join("\n");
-
-    const secretKey = createHmac("sha256", "WebAppData").update(botToken).digest();
-    const computedHash = createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
-
-    if (computedHash !== hash) return null;
-
-    const result: Record<string, string> = {};
-    for (const [k, v] of params.entries()) {
-      result[k] = v;
-    }
-    result["hash"] = hash;
-    return result;
-  } catch {
-    return null;
-  }
 }
 
 router.post("/auth/telegram", async (req: Request, res: Response) => {
@@ -61,7 +32,7 @@ router.post("/auth/telegram", async (req: Request, res: Response) => {
     return;
   }
 
-  const verified = verifyTelegramData(initData, botToken);
+  const verified = verifyTelegramInitData(initData, botToken);
   if (!verified) {
     res.status(401).json({ error: "Invalid Telegram data" });
     return;
@@ -255,6 +226,7 @@ router.post("/auth/telegram", async (req: Request, res: Response) => {
         hasActiveWagering: player!.hasActiveWagering,
         invitedBy: player!.invitedBy ?? null,
         role: player!.role,
+        preferredBalance: player!.preferredBalance ?? "main_first",
       },
     });
   } catch (err) {

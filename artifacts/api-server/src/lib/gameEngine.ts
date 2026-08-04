@@ -1039,9 +1039,9 @@ export class GameEngine {
       try {
         deductResult = await db.transaction(async (tx) => {
           const rows = await tx.execute(
-            sql`SELECT main_balance, bonus_balance, has_active_wagering FROM players WHERE telegram_id = ${player.telegramId} FOR UPDATE LIMIT 1`
+            sql`SELECT main_balance, bonus_balance, has_active_wagering, preferred_balance FROM players WHERE telegram_id = ${player.telegramId} FOR UPDATE LIMIT 1`
           );
-          type BalRow = { main_balance: string; bonus_balance: string; has_active_wagering: boolean };
+          type BalRow = { main_balance: string; bonus_balance: string; has_active_wagering: boolean; preferred_balance: string };
           const row = rows.rows[0] as BalRow | undefined;
           if (!row) return null;
 
@@ -1049,8 +1049,18 @@ export class GameEngine {
           const bonusBal = Number(row.bonus_balance);
           if (mainBal + bonusBal < stakePerCard) return null;
 
-          const mainDeduct = Math.min(mainBal, stakePerCard);
-          const bonusDeduct = stakePerCard - mainDeduct;
+          // Respect the player's preferredBalance setting:
+          // 'main_first' (default): deduct mainBalance first, bonusBalance for remainder.
+          // 'bonus_first': deduct bonusBalance first, mainBalance for remainder.
+          let mainDeduct: number;
+          let bonusDeduct: number;
+          if ((row.preferred_balance ?? "main_first") === "bonus_first") {
+            bonusDeduct = Math.min(bonusBal, stakePerCard);
+            mainDeduct = stakePerCard - bonusDeduct;
+          } else {
+            mainDeduct = Math.min(mainBal, stakePerCard);
+            bonusDeduct = stakePerCard - mainDeduct;
+          }
 
           // Build update object — always deduct mainBalance; conditionally deduct bonusBalance
           // and track wagering progress if wagering is active.
