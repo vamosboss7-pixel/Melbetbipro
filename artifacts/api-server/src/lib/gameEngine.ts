@@ -345,8 +345,9 @@ export class GameEngine {
     this.phase = "finished";
 
     const stakePerCardW = this.cfgStakePerCard();
+    const commissionPctW = this.cfgCommissionPercent();
     const totalPoolW = [...this.roundParticipants.values()].reduce((sum, p) => sum + p.cardIds.length * stakePerCardW, 0);
-    const jackpotCutW = Math.round(totalPoolW * 0.20);
+    const jackpotCutW = Math.round(totalPoolW * commissionPctW / 100);
     const netPoolW = totalPoolW - jackpotCutW;
     const prizePerWinner = this.winners.length > 0 ? Math.floor(netPoolW / this.winners.length) : 0;
 
@@ -369,9 +370,10 @@ export class GameEngine {
     const winnerTelegramIds = new Set(winners.map(w => w.telegramId));
     const stakePerCard = this.cfgStakePerCard();
 
+    const commissionPct = this.cfgCommissionPercent();
     const totalPrizePool = [...this.roundParticipants.values()]
       .reduce((sum, p) => sum + p.cardIds.length * stakePerCard, 0);
-    const jackpotContribution = Math.round(totalPrizePool * 0.20);
+    const jackpotContribution = Math.round(totalPrizePool * commissionPct / 100);
     const netPrizePool = totalPrizePool - jackpotContribution;
     const prizePerWinner = winnerTelegramIds.size > 0
       ? Math.floor(netPrizePool / winnerTelegramIds.size)
