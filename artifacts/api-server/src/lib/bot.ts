@@ -285,7 +285,7 @@ bot.command("start", async (ctx) => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const startKb: any[][] = [
     [
-      ...(playUrl ? [{ text: "🎮 Play Game (ካፈት)", web_app: { url: playUrl } }] : [{ text: "🎮 Play Game (ካፈት)", callback_data: `cmd_noplay_${user.id}` }]),
+      ...(playUrl ? [{ text: "🎮 Play Game (ክፈት)", web_app: { url: playUrl } }] : [{ text: "🎮 Play Game (ክፈት)", callback_data: `cmd_noplay_${user.id}` }]),
     ],
     [
       { text: "🏦 Add Funds (ገቢ)", callback_data: `cmd_deposit_${user.id}` },
@@ -378,7 +378,7 @@ bot.command("start", async (ctx) => {
     logger.error({ err: startErr, telegramId: user.id }, "/start handler error — sending fallback");
     try {
       const fallbackKb = [
-        [{ text: "🎮 Play Game (ካፈት)", callback_data: `cmd_noplay_${user.id}` }],
+        [{ text: "🎮 Play Game (ክፈት)", callback_data: `cmd_noplay_${user.id}` }],
         [
           { text: "🏦 Add Funds (ገቢ)", callback_data: `cmd_deposit_${user.id}` },
           { text: "💵 Cash Out (ወጪ)", callback_data: `cmd_withdraw_${user.id}` },
@@ -478,7 +478,7 @@ bot.callbackQuery(/^cmd_withdraw_(\d+)$/, async (ctx) => {
     clearAllSessions(userId);
     withdrawSessions.set(userId, { step: "amount", amount: 0, phone: "", accountName: "" });
     await ctx.reply(
-      `💸 ማውጣት የሚፈልጉትን መጠን ያስጊቡ:\n\n` +
+      `💸 ማውጣት የሚፈልጉትን መጠን ያስገቡ:\n\n` +
       `💰 Main Balance: <b>${mainBalance.toFixed(2)} ብር</b>\n\n` +
       `⚠️ ቢያንስ 100 ብር ማውጣት ይቻላል`,
       { parse_mode: "HTML" }
@@ -571,7 +571,7 @@ bot.callbackQuery(/^cmd_register_(\d+)$/, async (ctx) => {
 // ── Shared promo code redemption helper ────────────────────────────────────────
 async function redeemPromoCode(telegramId: number, rawCode: string): Promise<string> {
   const code = rawCode.trim().toUpperCase();
-  if (!code) return "❌ ኮዱን ያስጊቡ። ምሳሌ: /promo SAVE20";
+  if (!code) return "❌ ኮዱን ያስገቡ። ምሳሌ: /promo SAVE20";
   const codeRows = await db.select().from(promoCodesTable).where(eq(promoCodesTable.code, code)).limit(1);
   if (!codeRows.length) return "❌ ኮዱ አልተገኘም። እንደገና ያረጋግጡ።";
   const promo = codeRows[0]!;
@@ -749,7 +749,7 @@ bot.callbackQuery(/^cmd_tr_type_(etb|coins)_(\d+)$/, async (ctx) => {
   transferSessions.set(userId, session);
   await ctx.reply(
     `${type === "etb" ? "💰 ETB" : "🪙 ETB"} ትራንስፈር\n\n` +
-    `ሊያስተላልፉለት የሚፈልጉትን ተጫዋቸ @username ወይም Telegram ID ያስጊቡ:`
+    `ሊያስተላልፉለት የሚፈልጉትን ተጫዋቸ @username ወይም Telegram ID ያስገቡ:`
   );
 });
 
@@ -968,7 +968,7 @@ bot.command("withdraw", async (ctx) => {
     clearAllSessions(user.id);
     withdrawSessions.set(user.id, { step: "amount", amount: 0, phone: "", accountName: "" });
     await ctx.reply(
-      `💸 ማውጣት የሚፈልጉትን መጠን ያስጊቡ:\n\n` +
+      `💸 ማውጣት የሚፈልጉትን መጠን ያስገቡ:\n\n` +
       `💰 Main Balance: <b>${mainBalance.toFixed(2)} ብር</b>\n\n` +
       `⚠️ ቢያንስ 100 ብር ማውጣት ይቻላል`,
       { parse_mode: "HTML" }
@@ -1499,7 +1499,7 @@ bot.on("message:text", async (ctx) => {
             .from(playersTable).where(eq(playersTable.username, raw)).limit(1);
           if (found.length) targetId = found[0]!.telegramId;
         }
-        if (!targetId) { await ctx.reply("❌ ተጫዋቹ አልተገኘም። @username ወይም Telegram ID ትክክለኛ ሆኖ ያስጊቡ:"); return; }
+        if (!targetId) { await ctx.reply("❌ ተጫዋቹ አልተገኘም። @username ወይም Telegram ID ትክክለኛ ሆኖ ያስገቡ:"); return; }
         if (targetId === user.id) { await ctx.reply("❌ ወደ ራስዎ ማስተላለፍ አይቻልም።"); transferSessions.delete(user.id); return; }
         const targetRows = await db.select({ firstName: playersTable.firstName })
           .from(playersTable).where(eq(playersTable.telegramId, targetId)).limit(1);
@@ -1510,7 +1510,7 @@ bot.on("message:text", async (ctx) => {
         transferSessions.set(user.id, trSession);
         const typeLabel = trSession.type === "coins" ? "🪙 ETB" : "💰 ETB";
         await ctx.reply(
-          `✅ ተቀባይ: <b>${trSession.target}</b>\n\n${typeLabel} ማስተላለፍ የሚፈልጉትን <b>መጠን</b> ያስጊቡ (ቢያንስ <b>50</b>):`,
+          `✅ ተቀባይ: <b>${trSession.target}</b>\n\n${typeLabel} ማስተላለፍ የሚፈልጉትን <b>መጠን</b> ያስገቡ (ቢያንስ <b>50</b>):`,
           { parse_mode: "HTML" }
         );
       } catch (err) { logger.error({ err }, "transfer target lookup error"); await ctx.reply("❌ ስህተት ተፈጥሯል።"); transferSessions.delete(user.id); }
@@ -1518,7 +1518,7 @@ bot.on("message:text", async (ctx) => {
     }
     if (trSession.step === "amount") {
       const amount = Number(text);
-      if (isNaN(amount) || amount < 50) { await ctx.reply("⚠️ ቢያንስ 50 ያስጊቡ:"); return; }
+      if (isNaN(amount) || amount < 50) { await ctx.reply("⚠️ ቢያንስ 50 ያስገቡ:"); return; }
       const isCoins = trSession.type === "coins";
       const typeLabel = isCoins ? "🪙 ETB" : "💰 ETB";
       try {
@@ -1591,7 +1591,7 @@ bot.on("message:text", async (ctx) => {
     if (wSession.step === "amount") {
       const amount = Number(text);
       if (isNaN(amount) || amount < 100) {
-        await ctx.reply("⚠️ ቢያንስ 100 ብር ያስጊቡ:");
+        await ctx.reply("⚠️ ቢያንስ 100 ብር ያስገቡ:");
         return;
       }
       try {
@@ -1613,7 +1613,7 @@ bot.on("message:text", async (ctx) => {
       wSession.step = "phone";
       withdrawSessions.set(user.id, wSession);
       await ctx.reply(
-        `✅ <b>${amount} ብር</b> ማውጣት\n\n📞 ብርዎን የሚቀበሉበት <b>Telebirr ስልክ ቁጥር</b> ያስጊቡ:`,
+        `✅ <b>${amount} ብር</b> ማውጣት\n\n📞 ብርዎን የሚቀበሉበት <b>Telebirr ስልክ ቁጥር</b> ያስገቡ:`,
         { parse_mode: "HTML" }
       );
       return;
@@ -1622,14 +1622,14 @@ bot.on("message:text", async (ctx) => {
     if (wSession.step === "phone") {
       const phone = text.replace(/\s/g, "");
       if (!/^(09|07|\+2519|\+2517)\d{8}$/.test(phone) && !/^\d{10,12}$/.test(phone)) {
-        await ctx.reply("⚠️ ትክክለኛ ስልክ ቁጥር ያስጊቡ (ለምሳሌ: 0912345678):");
+        await ctx.reply("⚠️ ትክክለኛ ስልክ ቁጥር ያስገቡ (ለምሳሌ: 0912345678):");
         return;
       }
       wSession.phone = phone;
       wSession.step = "accountName";
       withdrawSessions.set(user.id, wSession);
       await ctx.reply(
-        `✅ ስልክ ቁጥር ተቀብሏል: <code>${phone}</code>\n\n👤 የTelebirr <b>አካውንት ሆልደር ስም</b> ያስጊቡ:\n<i>(በTelebirr ላይ ያለዉ ሙሉ ስም)</i>`,
+        `✅ ስልክ ቁጥር ተቀብሏል: <code>${phone}</code>\n\n👤 የTelebirr <b>አካውንት ሆልደር ስም</b> ያስገቡ:\n<i>(በTelebirr ላይ ያለዉ ሙሉ ስም)</i>`,
         { parse_mode: "HTML" }
       );
       return;
@@ -1638,7 +1638,7 @@ bot.on("message:text", async (ctx) => {
     if (wSession.step === "accountName") {
       const accountName = text.trim();
       if (accountName.length < 2) {
-        await ctx.reply("⚠️ ትክክለኛ ስም ያስጊቡ:");
+        await ctx.reply("⚠️ ትክክለኛ ስም ያስገቡ:");
         return;
       }
       wSession.accountName = accountName;
