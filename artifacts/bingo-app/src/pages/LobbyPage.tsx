@@ -91,7 +91,7 @@ export default function LobbyPage() {
             marginBottom: 4,
           }}
         >
-          BEHERAWI BINGO
+          MELBIT BINGO
         </h1>
 
         {/* Subtitle */}
@@ -106,7 +106,7 @@ export default function LobbyPage() {
             marginBottom: 32,
           }}
         >
-          BEHERAWI VELVET GRAND CASINO
+          MELBIT VELVET GRAND CASINO
         </p>
 
         {/* Info Cards 2x2 */}

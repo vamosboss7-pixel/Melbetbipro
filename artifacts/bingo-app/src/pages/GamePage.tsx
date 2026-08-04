@@ -102,7 +102,7 @@ export default function GamePage() {
           }}>🎲</div>
           <div style={{ flex: 1 }}>
             <div className="font-condensed" style={{ fontSize: 12, fontWeight: 800, color: '#D4A017', letterSpacing: '0.06em', lineHeight: 1.1 }}>
-              BEHERAWI BINGO
+              MELBIT BINGO
             </div>
             <div style={{ fontSize: 9, color: connected ? '#22c55e' : '#888' }}>
               {connected ? '● LIVE' : '○ CONNECTING...'}
