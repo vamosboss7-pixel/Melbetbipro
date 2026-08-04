@@ -7,13 +7,20 @@ import WinnerPage from './pages/WinnerPage'
 import WalletPage from './pages/WalletPage'
 import ProfilePage from './pages/ProfilePage'
 import SettingsPage from './pages/SettingsPage'
+import AdminPage from './pages/AdminPage'
 import BottomNav from './components/BottomNav'
 
 // Routes where the bottom nav should NOT appear
-const HIDDEN_NAV_ROUTES = ['/game', '/slots', '/winner']
+const HIDDEN_NAV_ROUTES = ['/game', '/slots', '/winner', '/admin']
 
 function AppShell() {
   const [location] = useLocation()
+
+  // Admin page rendered outside PlayerProvider — no Telegram auth needed
+  if (location === '/admin') {
+    return <AdminPage />
+  }
+
   const showNav = !HIDDEN_NAV_ROUTES.includes(location)
 
   return (
@@ -35,6 +42,7 @@ function AppShell() {
         <Route path="/wallet" component={WalletPage} />
         <Route path="/profile" component={ProfilePage} />
         <Route path="/settings" component={SettingsPage} />
+        <Route path="/admin" component={AdminPage} />
       </Switch>
       {showNav && <BottomNav />}
     </div>
