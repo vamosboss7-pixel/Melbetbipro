@@ -180,15 +180,15 @@ export default function SlotSelectionPage() {
               letterSpacing: '0.08em', marginBottom: 10,
             }}>INSUFFICIENT BALANCE</div>
             <div style={{ fontSize: 13, color: '#aaa', lineHeight: 1.5, marginBottom: 6 }}>
-              ካርቴላ ለመምረጥ ኮይን ያስፈልጋል። ዲፖዚት ያድርጉ።
+              ካርቴላ ለመምረጥ ETB ያስፈልጋል። ዲፖዚት ያድርጉ።
             </div>
             {stakePerCard > 0 && (
               <div style={{ fontSize: 12, color: '#D4A017', fontWeight: 700, marginBottom: 20 }}>
-                ለ 1 ካርቴላ: {stakePerCard} ኮይን ያስፈልጋል
+                ለ 1 ካርቴላ: {stakePerCard} ETB ያስፈልጋል
               </div>
             )}
             <div style={{ fontSize: 12, color: '#888', marginBottom: 20 }}>
-              ኮይን: <span style={{ color: '#fff', fontWeight: 700 }}>🪙 {totalBalance}</span>
+              ETB: <span style={{ color: '#fff', fontWeight: 700 }}>💰 {totalBalance}</span>
             </div>
             <button
               onClick={() => setShowNoBalance(false)}
@@ -258,7 +258,7 @@ export default function SlotSelectionPage() {
               </span>
             </div>
             <div className="stat-chip">
-              <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>🪙 COINS</span>
+              <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>💰 ETB</span>
               <span style={{ fontSize: 13, fontWeight: 700, color: '#D4A017' }}>{totalBalance}</span>
             </div>
           </div>

@@ -714,14 +714,14 @@ bot.callbackQuery(/^cmd_transfer_(\d+)$/, async (ctx) => {
   await ctx.reply(
     `🔄 <b>ማስተላለፊያ አይነት ይምረጡ</b>\n\n` +
     `💰 <b>ETB</b> — ከጨዋታ ማሸነፊያ ብር (ማውጣት የሚቻል)\n` +
-    `🪙 <b>Coins</b> — ዲፖዚት / ቦነስ ኮይን (ለጨዋታ ብቻ)\n\n` +
+    `🪙 <b>ETB</b> — ዲፖዚት / ቦነስ ETB (ለጨዋታ ብቻ)\n\n` +
     `ቢያንስ <b>50</b> ሊላኩ ይቻላል።`,
     {
       parse_mode: "HTML",
       reply_markup: {
         inline_keyboard: [[
           { text: "💰 ETB", callback_data: `cmd_tr_type_etb_${userId}` },
-          { text: "🪙 Coins", callback_data: `cmd_tr_type_coins_${userId}` },
+          { text: "🪙 ETB", callback_data: `cmd_tr_type_coins_${userId}` },
         ]],
       },
     }
@@ -739,7 +739,7 @@ bot.callbackQuery(/^cmd_tr_type_(etb|coins)_(\d+)$/, async (ctx) => {
   session.step = "target";
   transferSessions.set(userId, session);
   await ctx.reply(
-    `${type === "etb" ? "💰 ETB" : "🪙 Coins"} ትራንስፈር\n\n` +
+    `${type === "etb" ? "💰 ETB" : "🪙 ETB"} ትራንስፈር\n\n` +
     `ሊያስተላልፉለት የሚፈልጉትን ተጫዋቸ @username ወይም Telegram ID ያስጊቡ:`
   );
 });
@@ -1496,7 +1496,7 @@ bot.on("message:text", async (ctx) => {
         trSession.targetId = targetId;
         trSession.step = "amount";
         transferSessions.set(user.id, trSession);
-        const typeLabel = trSession.type === "coins" ? "🪙 Coins" : "💰 ETB";
+        const typeLabel = trSession.type === "coins" ? "🪙 ETB" : "💰 ETB";
         await ctx.reply(
           `✅ ተቀባይ: <b>${trSession.target}</b>\n\n${typeLabel} ማስተላለፍ የሚፈልጉትን <b>መጠን</b> ያስጊቡ (ቢያንስ <b>50</b>):`,
           { parse_mode: "HTML" }
@@ -1508,7 +1508,7 @@ bot.on("message:text", async (ctx) => {
       const amount = Number(text);
       if (isNaN(amount) || amount < 50) { await ctx.reply("⚠️ ቢያንስ 50 ያስጊቡ:"); return; }
       const isCoins = trSession.type === "coins";
-      const typeLabel = isCoins ? "🪙 Coins" : "💰 ETB";
+      const typeLabel = isCoins ? "🪙 ETB" : "💰 ETB";
       try {
         const senderRows = await db.select({ mainBalance: playersTable.mainBalance })
           .from(playersTable).where(eq(playersTable.telegramId, user.id)).limit(1);
@@ -1533,7 +1533,7 @@ bot.on("message:text", async (ctx) => {
         );
         try {
           await bot.api.sendMessage(trSession.targetId,
-            `${typeLabel} <b>ደረሰዎ!</b>\n\n${user.first_name} <b>${amount} ${isCoins ? "Coins" : "ብር"}</b> ልኮልዎታል!\n\n🎮 ጨዋታ ይጫወቱ!`,
+            `${typeLabel} <b>ደረሰዎ!</b>\n\n${user.first_name} <b>${amount} ETB</b> ልኮልዎታል!\n\n🎮 ጨዋታ ይጫወቱ!`,
             { parse_mode: "HTML" }
           );
         } catch { /* non-fatal */ }
