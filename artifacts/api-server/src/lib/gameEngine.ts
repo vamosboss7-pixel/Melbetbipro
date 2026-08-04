@@ -117,6 +117,10 @@ export class GameEngine {
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
   private ballTimer: ReturnType<typeof setInterval> | null = null;
   private finishedTimer: ReturnType<typeof setTimeout> | null = null;
+  private tieWindowTimer: ReturnType<typeof setTimeout> | null = null;
+  // Number of called balls when the first winner of a round was validated.
+  // Used to accept co-winners who claim on the same ball within the tie window.
+  private tieWindowBallCount = 0;
 
   constructor(io: Server, config: RoomConfig = {}) {
     this.io = io;
@@ -328,6 +332,12 @@ export class GameEngine {
     const calledSet = new Set(this.calledBalls);
     if (!checkWin(serverCard, calledSet)) return;
 
+    // Co-winner check: if a tie window is open, only accept claims at the same
+    // ball count as the first winner. Claims after extra balls have been called
+    // are rejected (that player would have won earlier and didn't claim in time).
+    const isFirstWinner = this.tieWindowBallCount === 0;
+    if (!isFirstWinner && this.calledBalls.length !== this.tieWindowBallCount) return;
+
     this.claimedThisRound.add(player.telegramId);
 
     const winner: Winner = {
@@ -339,9 +349,24 @@ export class GameEngine {
     };
 
     this.winners.push(winner);
-    logger.info({ roundId: this.roundId, telegramId: player.telegramId, cardId: data.cardId }, "Winner!");
+    logger.info({ roundId: this.roundId, telegramId: player.telegramId, cardId: data.cardId, isFirstWinner, ballCount: this.calledBalls.length }, "Winner!");
 
-    this.clearAllTimers();
+    if (isFirstWinner) {
+      // First winner: freeze ball calls, open a 500 ms tie window for co-winners.
+      this.tieWindowBallCount = this.calledBalls.length;
+      if (this.ballTimer) { clearInterval(this.ballTimer); this.ballTimer = null; }
+      if (this.countdownTimer) { clearInterval(this.countdownTimer); this.countdownTimer = null; }
+
+      this.tieWindowTimer = setTimeout(() => {
+        this.tieWindowTimer = null;
+        this.declareWinnersAndFinish();
+      }, 500);
+    }
+    // If not the first winner, simply fall through — tieWindowTimer will fire
+    // and include this winner when it calls declareWinnersAndFinish().
+  }
+
+  private declareWinnersAndFinish() {
     this.phase = "finished";
 
     const stakePerCardW = this.cfgStakePerCard();
@@ -843,6 +868,7 @@ export class GameEngine {
     this.roundId = randomUUID();
     this.winners = [];
     this.claimedThisRound = new Set();
+    this.tieWindowBallCount = 0;
     this.calledBalls = [];
     this.currentBall = null;
     this.availableBalls = this.makeAvailableBalls();
@@ -865,6 +891,7 @@ export class GameEngine {
     if (this.countdownTimer) { clearInterval(this.countdownTimer); this.countdownTimer = null; }
     if (this.ballTimer) { clearInterval(this.ballTimer); this.ballTimer = null; }
     if (this.finishedTimer) { clearTimeout(this.finishedTimer); this.finishedTimer = null; }
+    if (this.tieWindowTimer) { clearTimeout(this.tieWindowTimer); this.tieWindowTimer = null; }
   }
 
   async initJackpotPool(): Promise<void> {
