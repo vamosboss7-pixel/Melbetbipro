@@ -226,12 +226,12 @@ export default function LobbyPage() {
       <div
         style={{
           position: 'fixed',
-          bottom: 0,
+          bottom: 68,
           left: '50%',
           transform: 'translateX(-50%)',
           width: '100%',
           maxWidth: 480,
-          padding: '16px 16px 28px',
+          padding: '16px 16px 12px',
           background: 'linear-gradient(to top, #180608 70%, transparent)',
         }}
       >
