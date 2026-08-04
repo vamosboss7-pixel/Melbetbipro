@@ -587,7 +587,7 @@ export class GameEngine {
             VALUES
               (${txBatchId}, ${txBatchNumber}, ${telegramId}, ${participant.firstName},
                ${firstGamePoints}, 1, ${txGameCount}, NOW(), NOW())
-            ON CONFLICT ON CONSTRAINT jackpot_points_batch_player_uidx DO UPDATE SET
+            ON CONFLICT (batch_id, telegram_id) DO UPDATE SET
               streak_count    = CASE
                                   WHEN jackpot_points.last_game_count = ${txGameCount} - 1
                                     THEN LEAST(jackpot_points.streak_count + 1, 8)
