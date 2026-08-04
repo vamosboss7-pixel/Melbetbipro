@@ -51,9 +51,9 @@ export default function ProfilePage() {
       {/* Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 16 }}>
         {[
-          { label: 'ዋና ሂሳብ', value: `${parseFloat(player?.mainBalance ?? '0').toFixed(2)} ETB`, icon: '💵' },
+          { label: 'ዲፖዚት', value: `${parseFloat(player?.depositBalance ?? '0').toFixed(2)} ETB`, icon: '💳' },
+          { label: 'ሜን ዋሌት', value: `${parseFloat(player?.mainBalance ?? '0').toFixed(2)} ETB`, icon: '💵' },
           { label: 'ቦነስ', value: `${parseFloat(player?.bonusBalance ?? '0').toFixed(2)} ETB`, icon: '🎁' },
-          { label: 'ጠቅላላ ሂሳብ', value: `${parseFloat(player?.balance ?? '0').toFixed(2)} ETB`, icon: '💰' },
           { label: 'ደረጃ', value: player?.role ?? '—', icon: '⭐' },
         ].map((stat, i) => (
           <div

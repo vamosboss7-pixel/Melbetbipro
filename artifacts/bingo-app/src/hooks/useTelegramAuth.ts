@@ -6,6 +6,7 @@ export interface Player {
   username: string | null
   photoUrl: string | null
   balance: string
+  depositBalance: string
   mainBalance: string
   bonusBalance: string
   wageringRequired?: string

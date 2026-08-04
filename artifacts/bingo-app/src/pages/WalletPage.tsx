@@ -3,9 +3,13 @@ import { usePlayer } from '../context/PlayerContext'
 export default function WalletPage() {
   const { player, loading } = usePlayer()
 
+  const depositBal = parseFloat(player?.depositBalance ?? '0')
   const mainBal = parseFloat(player?.mainBalance ?? '0')
   const bonusBal = parseFloat(player?.bonusBalance ?? '0')
-  const withdrawBal = parseFloat(player?.balance ?? '0')
+  const wageringRequired = parseFloat(player?.wageringRequired ?? '0')
+  const wageringCompleted = parseFloat(player?.wageringCompleted ?? '0')
+  const hasActiveWagering = player?.hasActiveWagering ?? false
+  const wageringPct = wageringRequired > 0 ? Math.min(100, (wageringCompleted / wageringRequired) * 100) : 0
 
   return (
     <div
@@ -33,34 +37,35 @@ export default function WalletPage() {
 
       {/* Balance Cards */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Bonus / play balance */}
+
+        {/* Deposit Balance — non-withdrawable, for gameplay */}
         <div
           className="game-card"
           style={{ padding: '20px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
             <div className="icon-sq" style={{ width: 44, height: 44 }}>
-              <span style={{ fontSize: 20 }}>🎮</span>
+              <span style={{ fontSize: 20 }}>💳</span>
             </div>
             <div>
               <div style={{ fontSize: 11, color: '#aaa', fontWeight: 600, letterSpacing: '0.06em', marginBottom: 2 }}>
-                ቦነስ ሂሳብ
+                ዲፖዚት ባላንስ
               </div>
-              <div style={{ fontSize: 11, color: '#666' }}>ለጨዋታ ብቻ</div>
+              <div style={{ fontSize: 11, color: '#e05c00' }}>ማውጣት አይቻልም · ለጨዋታ ብቻ</div>
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
             <div
               className="font-condensed"
-              style={{ fontSize: 22, fontWeight: 700, color: '#E91E8C' }}
+              style={{ fontSize: 22, fontWeight: 700, color: '#f97316' }}
             >
-              {loading ? '...' : bonusBal.toFixed(2)}
+              {loading ? '...' : depositBal.toFixed(2)}
             </div>
             <div style={{ fontSize: 11, color: '#888' }}>ETB</div>
           </div>
         </div>
 
-        {/* Main balance */}
+        {/* Main Balance — withdrawable game winnings */}
         <div
           className="game-card"
           style={{ padding: '20px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
@@ -71,9 +76,9 @@ export default function WalletPage() {
             </div>
             <div>
               <div style={{ fontSize: 11, color: '#aaa', fontWeight: 600, letterSpacing: '0.06em', marginBottom: 2 }}>
-                ዋና ሂሳብ
+                ሜን ዋሌት
               </div>
-              <div style={{ fontSize: 11, color: '#666' }}>ዋና ቅጥያ</div>
+              <div style={{ fontSize: 11, color: '#22c55e' }}>ማውጣት ይቻላል</div>
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
@@ -87,32 +92,58 @@ export default function WalletPage() {
           </div>
         </div>
 
-        {/* Withdrawable Balance */}
+        {/* Bonus Balance — non-withdrawable, wagering required */}
         <div
           className="game-card"
-          style={{ padding: '20px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+          style={{ padding: '20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-            <div className="icon-sq" style={{ width: 44, height: 44 }}>
-              <span style={{ fontSize: 20 }}>💸</span>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#aaa', fontWeight: 600, letterSpacing: '0.06em', marginBottom: 2 }}>
-                የሚወጣ ሂሳብ
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <div className="icon-sq" style={{ width: 44, height: 44 }}>
+                <span style={{ fontSize: 20 }}>🎁</span>
               </div>
-              <div style={{ fontSize: 11, color: '#666' }}>ማውጣት ይቻላል</div>
+              <div>
+                <div style={{ fontSize: 11, color: '#aaa', fontWeight: 600, letterSpacing: '0.06em', marginBottom: 2 }}>
+                  ቦነስ ባላንስ
+                </div>
+                <div style={{ fontSize: 11, color: '#e05c00' }}>ማውጣት አይቻልም · Wagering ያስፈልጋል</div>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <div
+                className="font-condensed"
+                style={{ fontSize: 22, fontWeight: 700, color: '#E91E8C' }}
+              >
+                {loading ? '...' : bonusBal.toFixed(2)}
+              </div>
+              <div style={{ fontSize: 11, color: '#888' }}>ETB</div>
             </div>
           </div>
-          <div style={{ textAlign: 'right' }}>
-            <div
-              className="font-condensed"
-              style={{ fontSize: 22, fontWeight: 700, color: '#22c55e' }}
-            >
-              {loading ? '...' : withdrawBal.toFixed(2)}
+
+          {/* Wagering progress bar */}
+          {hasActiveWagering && (
+            <div style={{ paddingTop: 4 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 10, color: '#aaa' }}>⚡ Wagering Progress</span>
+                <span style={{ fontSize: 10, color: '#E91E8C' }}>
+                  {wageringCompleted.toFixed(2)} / {wageringRequired.toFixed(2)} ብር ({wageringPct.toFixed(0)}%)
+                </span>
+              </div>
+              <div style={{ background: '#2a0a0a', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+                <div
+                  style={{
+                    height: '100%',
+                    width: `${wageringPct}%`,
+                    background: 'linear-gradient(90deg, #E91E8C, #D4A017)',
+                    borderRadius: 4,
+                    transition: 'width 0.3s ease',
+                  }}
+                />
+              </div>
             </div>
-            <div style={{ fontSize: 11, color: '#888' }}>ETB</div>
-          </div>
+          )}
         </div>
+
       </div>
 
       {/* Action buttons */}
@@ -169,9 +200,10 @@ export default function WalletPage() {
           borderRadius: 10,
         }}
       >
-        <p style={{ fontSize: 11, color: '#888', lineHeight: 1.6 }}>
-          💡 ያስገቡ — ገንዘብ ለጨዋታ ቅጥያ ይጨምሩ።
-          ጨዋታ ሲያሸንፉ ወደ የሚወጣ ሂሳብ ይሄዳል።
+        <p style={{ fontSize: 11, color: '#888', lineHeight: 1.7 }}>
+          💳 <b style={{ color: '#f97316' }}>ዲፖዚት ባላንስ</b> — ያስገቡት ብር ለጨዋታ ይውላል፣ ማውጣት አይቻልም።<br />
+          💵 <b style={{ color: '#D4A017' }}>ሜን ዋሌት</b> — ከጨዋታ ያሸነፉት ብር፣ ማውጣት ይቻላል።<br />
+          🎁 <b style={{ color: '#E91E8C' }}>ቦነስ ባላንስ</b> — ቦነስ ብር፣ Wagering ሲጠናቀቅ ማውጣት ይቻላል።
         </p>
       </div>
     </div>

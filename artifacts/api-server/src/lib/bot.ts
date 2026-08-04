@@ -496,12 +496,14 @@ bot.callbackQuery(/^cmd_balance_(\d+)$/, async (ctx) => {
   try {
     const rows = await db.select().from(playersTable).where(eq(playersTable.telegramId, userId)).limit(1);
     if (!rows.length) { await ctx.reply("❌ አካዉንት አልተገኘም። /start ን ይጫኑ።"); return; }
+    const depositBalance = Number(rows[0]!.depositBalance);
     const mainBalance = Number(rows[0]!.mainBalance);
     const bonusBalance = Number(rows[0]!.bonusBalance);
     const firstName = rows[0]!.firstName ?? "—";
     await ctx.reply(
       `📊 <b>የርስዎ መረጃ</b> 📊\n\n` +
       `👤 ስም፡ <b>${esc(firstName)}</b>\n` +
+      `💳 Deposit Balance: <b>${depositBalance.toFixed(2)} ብር</b>\n` +
       `💰 Main Balance: <b>${mainBalance.toFixed(2)} ብር</b>\n` +
       `🎁 Bonus Balance: <b>${bonusBalance.toFixed(2)} ብር</b>`,
       { parse_mode: "HTML" }
@@ -537,6 +539,7 @@ bot.callbackQuery(/^cmd_register_(\d+)$/, async (ctx) => {
   try {
     const rows = await db.select({
       firstName: playersTable.firstName,
+      depositBalance: playersTable.depositBalance,
       mainBalance: playersTable.mainBalance,
       bonusBalance: playersTable.bonusBalance,
       createdAt: playersTable.createdAt,
@@ -546,6 +549,7 @@ bot.callbackQuery(/^cmd_register_(\d+)$/, async (ctx) => {
       await ctx.reply(
         `✅ <b>ተመዝግበዋል!</b>\n\n` +
         `👤 ስም: <b>${esc(rows[0]!.firstName)}</b>\n` +
+        `💳 Deposit Balance: <b>${Number(rows[0]!.depositBalance).toFixed(2)} ብር</b>\n` +
         `💰 Main Balance: <b>${Number(rows[0]!.mainBalance).toFixed(2)} ብር</b>\n` +
         `🎁 Bonus Balance: <b>${Number(rows[0]!.bonusBalance).toFixed(2)} ብር</b>\n\n` +
         `🎮 ጨዋታ ለመጀመር <b>Play</b> ቁልፍ ይጫኑ!`,
@@ -856,6 +860,7 @@ bot.command("balance", async (ctx) => {
   try {
     const rows = await db.select().from(playersTable).where(eq(playersTable.telegramId, user.id)).limit(1);
     if (!rows.length) { await ctx.reply("❌ አካዉንት አልተገኘም። /start ን ይጫኑ።"); return; }
+    const depositBalance = Number(rows[0]!.depositBalance);
     const mainBalance = Number(rows[0]!.mainBalance);
     const bonusBalance = Number(rows[0]!.bonusBalance);
     const wageringRequired = Number(rows[0]!.wageringRequired);
@@ -868,8 +873,10 @@ bot.command("balance", async (ctx) => {
       : "";
     await ctx.reply(
       `💳 <b>ዋሌት ዝርዝር</b>\n\n` +
+      `💳 <b>Deposit Balance:</b> <b>${depositBalance.toFixed(2)} ብር</b>\n` +
+      `   └ ዲፖዚት ብር — ለጨዋታ ብቻ፣ ማውጣት አይቻልም\n\n` +
       `💰 <b>Main Balance:</b> <b>${mainBalance.toFixed(2)} ብር</b>\n` +
-      `   └ ዲፖዚት + የጨዋታ ሽልማት — ማውጣት ይቻላል\n\n` +
+      `   └ የጨዋታ ሽልማት — ማውጣት ይቻላል\n\n` +
       `🎁 <b>Bonus Balance:</b> <b>${bonusBalance.toFixed(2)} ብር</b>\n` +
       `   └ ቦነስ ብር — Wagering ሲጠናቀቅ ማውጣት ይቻላል\n` +
       wageringLine +
@@ -1270,12 +1277,12 @@ bot.callbackQuery(/^approve_(\d+)$/, async (ctx) => {
     if (!rows.length || rows[0]!.status !== "pending") return ctx.answerCallbackQuery("⚠️ Already processed");
     const dep = rows[0]!;
     await db.update(pendingDepositsTable).set({ status: "approved", updatedAt: new Date() }).where(eq(pendingDepositsTable.id, depositId));
-    // Deposits go to bonus_balance — non-withdrawable, used for gameplay.
+    // Deposits go to deposit_balance — non-withdrawable, used for gameplay only.
     await db.update(playersTable).set({
-      bonusBalance: sql`${playersTable.bonusBalance} + ${dep.amount}`,
+      depositBalance: sql`${playersTable.depositBalance} + ${dep.amount}`,
     }).where(eq(playersTable.telegramId, dep.telegramId));
     await db.insert(transactionsTable).values({ telegramId: dep.telegramId, type: "deposit", amount: dep.amount, status: "approved", note: `Deposit #${dep.id} approved` });
-    await bot.api.sendMessage(dep.telegramId, `✅ ዲፖዚት ተፈቅዷል!\n\n🎮 <b>${Number(dep.amount).toFixed(0)} ብር</b> ወደ Bonus Wallet ተጨምሯል!\n🧾 Ref: #${dep.id}\n\n🎱 አሁን ይጫወቱ!`, { parse_mode: "HTML" });
+    await bot.api.sendMessage(dep.telegramId, `✅ ዲፖዚት ተፈቅዷል!\n\n💳 <b>${Number(dep.amount).toFixed(0)} ብር</b> ወደ Deposit Wallet ተጨምሯል!\n🧾 Ref: #${dep.id}\n\n🎱 አሁን ይጫወቱ!`, { parse_mode: "HTML" });
     await ctx.editMessageText(((ctx as any).message?.text ?? "") + "\n\n✅ <b>APPROVED</b>", { parse_mode: "HTML" });
     await ctx.answerCallbackQuery("✅ ተፈቅዷል!");
     logger.info({ depositId }, "Deposit approved");

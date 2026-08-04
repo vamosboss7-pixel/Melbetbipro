@@ -38,6 +38,7 @@ router.get("/player/wallet", async (req: Request, res: Response) => {
       .limit(50);
 
     res.json({
+      depositBalance: player.depositBalance,
       mainBalance: player.mainBalance,
       bonusBalance: player.bonusBalance,
       wageringRequired: player.wageringRequired,

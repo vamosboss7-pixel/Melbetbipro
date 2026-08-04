@@ -9,7 +9,9 @@ export const playersTable = pgTable("players", {
   firstName: text("first_name").notNull(),
   lastName: text("last_name"),
   photoUrl: text("photo_url"),
-  // Main balance: real deposited ETB, withdrawable.
+  // Deposit balance: funds deposited by the player — non-withdrawable, used for gameplay only.
+  depositBalance: numeric("deposit_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
+  // Main balance: game winnings — withdrawable.
   mainBalance: numeric("main_balance", { precision: 12, scale: 2 }).notNull().default("0.00"),
   // Bonus balance: registration bonus, promo credits, and winnings earned from bonus funds.
   // Non-withdrawable until wagering requirement is met.

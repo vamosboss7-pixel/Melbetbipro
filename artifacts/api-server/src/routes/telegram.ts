@@ -219,6 +219,7 @@ router.post("/auth/telegram", async (req: Request, res: Response) => {
         lastName: player!.lastName,
         username: player!.username,
         photoUrl: player!.photoUrl,
+        depositBalance: player!.depositBalance,
         mainBalance: player!.mainBalance,
         bonusBalance: player!.bonusBalance,
         wageringRequired: player!.wageringRequired,

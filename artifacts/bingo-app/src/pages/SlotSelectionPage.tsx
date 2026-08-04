@@ -60,9 +60,9 @@ export default function SlotSelectionPage() {
       if (state.jackpotPool != null) setJackpotPool(Number(state.jackpotPool).toFixed(2))
     })
 
-    socket.on('balance_update', (data: { mainBalance: string; bonusBalance: string }) => {
+    socket.on('balance_update', (data: { depositBalance?: string; mainBalance: string; bonusBalance: string }) => {
       // Use combined ETB balance for stake affordability check
-      setLivePlayBalance(parseFloat(data.mainBalance) + parseFloat(data.bonusBalance))
+      setLivePlayBalance(parseFloat(data.depositBalance ?? '0') + parseFloat(data.mainBalance) + parseFloat(data.bonusBalance))
     })
 
     // When a round resets, clear local card selection too
@@ -109,9 +109,9 @@ export default function SlotSelectionPage() {
   }, [])
 
   // ── Balance helpers ───────────────────────────────────────────────────────
-  // Staking deducts from mainBalance first, then bonusBalance.
+  // Staking deducts from depositBalance first, then mainBalance/bonusBalance.
   // livePlayBalance tracks the combined total, updated via balance_update socket events.
-  const totalBalanceNum = livePlayBalance ?? (player ? (parseFloat(player.mainBalance) + parseFloat(player.bonusBalance)) : 0)
+  const totalBalanceNum = livePlayBalance ?? (player ? (parseFloat(player.depositBalance ?? '0') + parseFloat(player.mainBalance) + parseFloat(player.bonusBalance)) : 0)
 
   const canAfford = (wantCount: number) => {
     if (stakePerCard <= 0) return true

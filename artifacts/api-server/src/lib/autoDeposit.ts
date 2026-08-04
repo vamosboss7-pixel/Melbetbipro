@@ -81,9 +81,9 @@ export async function creditPlayerBalance(
   amount: number,
   note: string,
 ): Promise<void> {
-  // Deposits go to bonus_balance — non-withdrawable, used for gameplay.
+  // Deposits go to deposit_balance — non-withdrawable, used for gameplay only.
   await db.update(playersTable).set({
-    bonusBalance: sql`${playersTable.bonusBalance} + ${amount}`,
+    depositBalance: sql`${playersTable.depositBalance} + ${amount}`,
   }).where(eq(playersTable.telegramId, telegramId));
 
   await db.insert(transactionsTable).values({
