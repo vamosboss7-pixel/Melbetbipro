@@ -19,7 +19,7 @@ export default function SlotSelectionPage() {
   const [jackpotPool, setJackpotPool] = useState<string>('0.00')
   const [stakePerCard, setStakePerCard] = useState<number>(0)
   const [showNoBalance, setShowNoBalance] = useState(false)
-  const { player } = usePlayer()
+  const { player, refresh } = usePlayer()
   // Live play-balance updated immediately via balance_update socket events
   const [livePlayBalance, setLivePlayBalance] = useState<number | null>(null)
 
@@ -32,6 +32,15 @@ export default function SlotSelectionPage() {
 
   useEffect(() => { playerRef.current = player }, [player])
   useEffect(() => { selectedSlotsRef.current = selectedSlots }, [selectedSlots])
+
+  // Refresh balance when returning to this page (e.g. after a game finishes)
+  useEffect(() => {
+    void refresh()
+    const onVisible = () => { if (document.visibilityState === 'visible') void refresh() }
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // Connect to socket and listen to server countdown/phase
   useEffect(() => {
