@@ -278,8 +278,8 @@ bot.command("start", async (ctx) => {
     ? (forwardParam ? `${appUrl}?startapp=${forwardParam}` : appUrl)
     : null;
 
-  // Join Channel URL — hardcoded to official channel
-  const joinChannelUrl = "https://t.me/melkambingo";
+  // Join Channel URL — from ANNOUNCEMENT_CHANNEL_ID env var
+  const joinChannelUrl = CHANNEL_ID ? channelJoinUrl(CHANNEL_ID) : "https://t.me/melkambingo";
 
   // Build inline keyboard matching app layout
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -397,7 +397,7 @@ bot.command("start", async (ctx) => {
           { text: "🔄 Transfer", callback_data: `cmd_transfer_${user.id}` },
         ],
         [
-          { text: "📣 Join Channel", url: "https://t.me/melkambingo" },
+          { text: "📣 Join Channel", url: CHANNEL_ID ? channelJoinUrl(CHANNEL_ID) : "https://t.me/melkambingo" },
           { text: "📢 Bonus Group", url: "https://t.me/+Zfrt1VTjNbxmNDhi" },
         ],
       ];
