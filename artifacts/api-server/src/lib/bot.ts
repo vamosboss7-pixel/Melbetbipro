@@ -1270,12 +1270,12 @@ bot.callbackQuery(/^approve_(\d+)$/, async (ctx) => {
     if (!rows.length || rows[0]!.status !== "pending") return ctx.answerCallbackQuery("⚠️ Already processed");
     const dep = rows[0]!;
     await db.update(pendingDepositsTable).set({ status: "approved", updatedAt: new Date() }).where(eq(pendingDepositsTable.id, depositId));
-    // Deposits go to mainBalance — real deposited ETB, withdrawable.
+    // Deposits go to bonus_balance — non-withdrawable, used for gameplay.
     await db.update(playersTable).set({
-      mainBalance: sql`${playersTable.mainBalance} + ${dep.amount}`,
+      bonusBalance: sql`${playersTable.bonusBalance} + ${dep.amount}`,
     }).where(eq(playersTable.telegramId, dep.telegramId));
     await db.insert(transactionsTable).values({ telegramId: dep.telegramId, type: "deposit", amount: dep.amount, status: "approved", note: `Deposit #${dep.id} approved` });
-    await bot.api.sendMessage(dep.telegramId, `✅ ዲፖዚት ተፈቅዷል!\n\n💰 <b>${Number(dep.amount).toFixed(0)} ብር</b> ወደ Main Wallet ተጨምሯል!\n🧾 Ref: #${dep.id}\n\n🎱 አሁን ይጫወቱ!`, { parse_mode: "HTML" });
+    await bot.api.sendMessage(dep.telegramId, `✅ ዲፖዚት ተፈቅዷል!\n\n🎮 <b>${Number(dep.amount).toFixed(0)} ብር</b> ወደ Bonus Wallet ተጨምሯል!\n🧾 Ref: #${dep.id}\n\n🎱 አሁን ይጫወቱ!`, { parse_mode: "HTML" });
     await ctx.editMessageText(((ctx as any).message?.text ?? "") + "\n\n✅ <b>APPROVED</b>", { parse_mode: "HTML" });
     await ctx.answerCallbackQuery("✅ ተፈቅዷል!");
     logger.info({ depositId }, "Deposit approved");

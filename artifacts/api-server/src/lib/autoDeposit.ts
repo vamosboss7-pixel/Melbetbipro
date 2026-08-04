@@ -81,9 +81,9 @@ export async function creditPlayerBalance(
   amount: number,
   note: string,
 ): Promise<void> {
-  // Deposits go to main_balance — real deposited ETB that is withdrawable.
+  // Deposits go to bonus_balance — non-withdrawable, used for gameplay.
   await db.update(playersTable).set({
-    mainBalance: sql`${playersTable.mainBalance} + ${amount}`,
+    bonusBalance: sql`${playersTable.bonusBalance} + ${amount}`,
   }).where(eq(playersTable.telegramId, telegramId));
 
   await db.insert(transactionsTable).values({
