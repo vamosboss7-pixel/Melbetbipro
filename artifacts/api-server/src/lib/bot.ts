@@ -1355,8 +1355,9 @@ bot.callbackQuery(/^method_telebirr_(\d+)$/, async (ctx) => {
   const session = depositSessions.get(userId);
   if (!session) return ctx.answerCallbackQuery("⏱️ Session expired. /deposit ን ይጫኑ።");
   await ctx.answerCallbackQuery();
+  const depositSupportUsername = (process.env["SUPPORT_USERNAME"] ?? "MelkamBingoSupport").replace(/^@/, "");
   await ctx.editMessageText(
-    `የሚያጋጥማቹ የክፍያ ችግር: @MelkamBingoSupport ላይ ፃፉልን።\n\n` +
+    `የሚያጋጥማቹ የክፍያ ችግር: @${depositSupportUsername} ላይ ፃፉልን።\n\n` +
     `1. ከታች ባለው የቴሌብር አካውንት <b>${session.amount} ብር</b> ያስገቡ\n\n` +
     `     📞 Phone: <code>${appSettings.get("telebirrNumber")}</code>\n\n` +
     `2. የከፈሉበትን አጭር የጹሁፍ መልዕክት(message) copy በማድረግ እዚ ላይ Past አድረገው ያስገቡና ይላኩት👇👇👇`,
