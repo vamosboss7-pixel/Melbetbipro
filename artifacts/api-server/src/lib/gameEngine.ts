@@ -628,13 +628,21 @@ export class GameEngine {
       throw err;
     }
 
-    // ── 3. Post leaderboard (games 1–9) or distribute jackpot (game 10) ──────
+    // ── 3. Post leaderboard (games 1–10) or distribute jackpot (game 10) ──────
     // These run outside the transaction: they're external side-effects (Telegram
     // messages, balance credits) that must not block the DB commit.
+
+    // Collect round winner names for the leaderboard post
+    const roundWinnerNames = [...winnerTelegramIds]
+      .map(tid => roundParticipants.get(tid)?.firstName)
+      .filter((n): n is string => !!n);
+
     try {
       if (gameCount < 10) {
-        await this.postLeaderboardToChannel(batchId, batchNumber, gameCount, currentPool);
+        await this.postLeaderboardToChannel(batchId, batchNumber, gameCount, currentPool, roundWinnerNames);
       } else {
+        // Game 10: post final leaderboard first, then distribute
+        await this.postLeaderboardToChannel(batchId, batchNumber, gameCount, currentPool, roundWinnerNames);
         await this.distributeJackpot(batchId, batchNumber, currentPool);
       }
     } catch (err) {
@@ -648,6 +656,7 @@ export class GameEngine {
     batchNumber: number,
     gameCount: number,
     currentPool: number,
+    roundWinnerNames: string[] = [],
   ): Promise<void> {
     const channelId = process.env["JACKPOT_CHANNEL_ID"] ?? "";
     if (!channelId) return;
@@ -665,16 +674,30 @@ export class GameEngine {
       const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
       const lines = rows.map((r, i) => `${medals[i] ?? "•"} ${r.firstName} — ${r.points} ነጥብ`);
 
+      const isFinal = gameCount >= 10;
+      const winnerLine = roundWinnerNames.length > 0
+        ? `🎯 *የዙሩ አሸናፊ:* ${roundWinnerNames.join(", ")}\n`
+        : "";
+
+      const nextLine = isFinal
+        ? `🔔 ጃክፖት ይሰራጫል...`
+        : `📊 ቀጣይ ዙር: ${gameCount + 1}/10`;
+
+      const title = isFinal
+        ? `🏆 *ጃክፖት ሊደርቦርድ — የመጨረሻ ዙር ${gameCount}/10*`
+        : `🏆 *ጃክፖት ሊደርቦርድ — ዙር ${gameCount}/10*`;
+
       const message =
-        `🏆 *ጃክፖት ሊደርቦርድ — ዙር ${gameCount}/10*\n` +
+        `${title}\n` +
         `━━━━━━━━━━━━━━━━━━━━━━\n` +
+        winnerLine +
         lines.join("\n") +
         `\n━━━━━━━━━━━━━━━━━━━━━━\n` +
         `💰 ጃክፖት ቦርሳ: *${currentPool.toFixed(2)} ETB*\n` +
-        `📊 ቀጣይ ዙር: ${gameCount + 1}/10`;
+        nextLine;
 
       await bot.api.sendMessage(channelId, message, { parse_mode: "Markdown" });
-      logger.info({ gameCount, batchNumber }, "Posted jackpot leaderboard to jackpot channel");
+      logger.info({ gameCount, batchNumber, isFinal }, "Posted jackpot leaderboard to jackpot channel");
     } catch (err) {
       logger.error({ err, channelId }, "Failed to post leaderboard to jackpot channel");
     }
