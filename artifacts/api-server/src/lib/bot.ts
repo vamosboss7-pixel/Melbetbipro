@@ -23,6 +23,11 @@ import {
   MAX_FAILURES,
 } from "./autoDeposit";
 
+/** Escape user-provided strings before embedding in Telegram HTML messages. */
+function esc(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
 const token = process.env["TELEGRAM_BOT_TOKEN"] ?? "placeholder:MISSING";
 const botReady = !!process.env["TELEGRAM_BOT_TOKEN"];
 if (!botReady) {
@@ -496,7 +501,7 @@ bot.callbackQuery(/^cmd_balance_(\d+)$/, async (ctx) => {
     const firstName = rows[0]!.firstName ?? "—";
     await ctx.reply(
       `📊 <b>የርስዎ መረጃ</b> 📊\n\n` +
-      `👤 ስም፡ <b>${firstName}</b>\n` +
+      `👤 ስም፡ <b>${esc(firstName)}</b>\n` +
       `💰 Main Balance: <b>${mainBalance.toFixed(2)} ብር</b>\n` +
       `🎁 Bonus Balance: <b>${bonusBalance.toFixed(2)} ብር</b>`,
       { parse_mode: "HTML" }
@@ -540,7 +545,7 @@ bot.callbackQuery(/^cmd_register_(\d+)$/, async (ctx) => {
     if (rows.length) {
       await ctx.reply(
         `✅ <b>ተመዝግበዋል!</b>\n\n` +
-        `👤 ስም: <b>${rows[0]!.firstName}</b>\n` +
+        `👤 ስም: <b>${esc(rows[0]!.firstName)}</b>\n` +
         `💰 Main Balance: <b>${Number(rows[0]!.mainBalance).toFixed(2)} ብር</b>\n` +
         `🎁 Bonus Balance: <b>${Number(rows[0]!.bonusBalance).toFixed(2)} ብር</b>\n\n` +
         `🎮 ጨዋታ ለመጀመር <b>Play</b> ቁልፍ ይጫኑ!`,
@@ -1061,7 +1066,7 @@ bot.command("makeagent", async (ctx) => {
     if (!rows.length) { await ctx.reply("❌ ተጫዋቹ አልተገኘም።"); return; }
     if (rows[0]!.role === "agent") { await ctx.reply(`ℹ️ <code>${targetId}</code> አስቀድሞ Agent ነው።`, { parse_mode: "HTML" }); return; }
     await db.update(playersTable).set({ role: "agent" }).where(eq(playersTable.telegramId, targetId));
-    await ctx.reply(`✅ <code>${targetId}</code> (${rows[0]!.firstName}) ወደ <b>Agent</b> ተሸጋሚ ሆኗል።`, { parse_mode: "HTML" });
+    await ctx.reply(`✅ <code>${targetId}</code> (${esc(rows[0]!.firstName)}) ወደ <b>Agent</b> ተሸጋሚ ሆኗል።`, { parse_mode: "HTML" });
     try {
       await bot.api.sendMessage(targetId,
         `🎉 <b>Agent ሆነዋል!</b>\n\nAgent ስለሆኑ፦\n` +
@@ -1091,7 +1096,7 @@ bot.command("removeagent", async (ctx) => {
     if (!rows.length) { await ctx.reply("❌ ተጫዋቹ አልተገኘም።"); return; }
     if (rows[0]!.role !== "agent") { await ctx.reply(`ℹ️ <code>${targetId}</code> Agent አይደለም።`, { parse_mode: "HTML" }); return; }
     await db.update(playersTable).set({ role: "player" }).where(eq(playersTable.telegramId, targetId));
-    await ctx.reply(`✅ <code>${targetId}</code> (${rows[0]!.firstName}) Agent role ተወግዷል።`, { parse_mode: "HTML" });
+    await ctx.reply(`✅ <code>${targetId}</code> (${esc(rows[0]!.firstName)}) Agent role ተወግዷል።`, { parse_mode: "HTML" });
     logger.info({ targetId, adminId: user.id }, "User demoted from agent");
   } catch (err) { logger.error({ err }, "removeagent command error"); await ctx.reply("❌ ስህተት ተፈጥሯል።"); }
 });
@@ -1533,7 +1538,7 @@ bot.on("message:text", async (ctx) => {
         );
         try {
           await bot.api.sendMessage(trSession.targetId,
-            `${typeLabel} <b>ደረሰዎ!</b>\n\n${user.first_name} <b>${amount} ETB</b> ልኮልዎታል!\n\n🎮 ጨዋታ ይጫወቱ!`,
+            `${typeLabel} <b>ደረሰዎ!</b>\n\n${esc(user.first_name)} <b>${amount} ETB</b> ልኮልዎታል!\n\n🎮 ጨዋታ ይጫወቱ!`,
             { parse_mode: "HTML" }
           );
         } catch { /* non-fatal */ }
