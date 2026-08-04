@@ -739,37 +739,23 @@ export class GameEngine {
       this.jackpotPool = 0;
       logger.info({ batchNumber, currentPool, winners: prizes.length }, "Jackpot distributed, new batch started");
 
-      // Announce in channel(s)
+      // Send personal DM to each winner — do NOT post to any channel
       const winnerMedals = ["🥇", "🥈", "🥉"];
-      const winLines = prizes.map(
-        (p, i) =>
-          `${winnerMedals[i]} *${p.firstName}* — ${p.points} pts → *${p.prize.toFixed(2)} ETB*`,
-      );
+      const placeNames = ["1ኛ", "2ኛ", "3ኛ"];
 
-      const msg =
-        `🔥 ጃክፖቱ ተበላ!\n\n` +
-        `በዙር #${batchNumber} *${currentPool.toFixed(2)} ብር* ለተፋላሚዎቹ ተከፍሏል!\n\n` +
-        `👇 ዕድለኞቹ:\n` +
-        winLines.join("\n") +
-        `\n\n⚡ ቀጣዩ ዙር አሁን ተጀምሯል! ቀድመው በመግባት ማሸነፍ ይጀምሩ! 💸 ቀጣዩን ጃክፖት የእርስዎ ያድርጉ 🎯`;
-
-      // Send to announcement channel (general game channel)
-      const announcementChannel = process.env["ANNOUNCEMENT_CHANNEL_ID"] ?? "";
-      if (announcementChannel) {
+      for (let i = 0; i < prizes.length; i++) {
+        const p = prizes[i]!;
+        if (p.prize <= 0) continue;
+        const dm =
+          `🎉 እንኳን ደስ አለዎት, *${p.firstName}*!\n\n` +
+          `${winnerMedals[i]} ከጃክፖት ዙር #${batchNumber} *${placeNames[i]}* ቦታ አሸነፉ!\n\n` +
+          `💰 ሽልማት: *${p.prize.toFixed(2)} ETB* ወደ ሂሳብዎ ተጨምሯል።\n` +
+          `📊 ነጥቦችዎ: ${p.points} ነጥብ\n\n` +
+          `⚡ ቀጣዩ ጃክፖት ዙር ተጀምሯል! ጨዋታ ቀጥሉ!`;
         try {
-          await bot.api.sendMessage(announcementChannel, msg, { parse_mode: "Markdown" });
+          await bot.api.sendMessage(p.telegramId, dm, { parse_mode: "Markdown" });
         } catch (err) {
-          logger.error({ err }, "Failed to send jackpot announcement to announcement channel");
-        }
-      }
-
-      // Also send to dedicated jackpot channel if configured separately
-      const jackpotChannel = process.env["JACKPOT_CHANNEL_ID"] ?? "";
-      if (jackpotChannel && jackpotChannel !== announcementChannel) {
-        try {
-          await bot.api.sendMessage(jackpotChannel, msg, { parse_mode: "Markdown" });
-        } catch (err) {
-          logger.error({ err }, "Failed to send jackpot announcement to jackpot channel");
+          logger.error({ err, telegramId: p.telegramId }, "Failed to send jackpot DM to winner");
         }
       }
     } catch (err) {
