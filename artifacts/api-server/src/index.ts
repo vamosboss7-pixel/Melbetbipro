@@ -196,6 +196,13 @@ async function ensureTablesExist() {
     await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS agent_balance NUMERIC(12,2) NOT NULL DEFAULT 0`);
     await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS has_claimed_channel_bonus BOOLEAN NOT NULL DEFAULT FALSE`);
     await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS total_invite_bonus NUMERIC(12,2) NOT NULL DEFAULT 0`);
+    // Columns added in later schema revisions — idempotent via IF NOT EXISTS
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS main_balance NUMERIC(12,2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS bonus_balance NUMERIC(12,2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS has_active_wagering BOOLEAN NOT NULL DEFAULT FALSE`);
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS wagering_required NUMERIC(12,2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS wagering_completed NUMERIC(12,2) NOT NULL DEFAULT 0`);
+    await db.execute(sql`ALTER TABLE players ADD COLUMN IF NOT EXISTS preferred_balance TEXT NOT NULL DEFAULT 'main_first'`);
     await db.execute(sql`ALTER TABLE game_rounds ADD COLUMN IF NOT EXISTS room_id TEXT NOT NULL DEFAULT 'room1'`);
     await db.execute(sql`
       CREATE TABLE IF NOT EXISTS jackpot_batches (
