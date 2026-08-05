@@ -476,6 +476,25 @@ bot.callbackQuery(/^cmd_withdraw_(\d+)$/, async (ctx) => {
       );
       return;
     }
+    // Lifetime deposit requirement: at least one approved deposit >= 50 ETB
+    const qualifyingDeposit = await db
+      .select({ id: pendingDepositsTable.id })
+      .from(pendingDepositsTable)
+      .where(and(
+        eq(pendingDepositsTable.telegramId, userId),
+        eq(pendingDepositsTable.status, "approved"),
+        sql`${pendingDepositsTable.amount}::numeric >= 50`
+      ))
+      .limit(1);
+    if (!qualifyingDeposit.length) {
+      await ctx.reply(
+        `⛔ <b>ዊዝድሮው ማድረግ አይቻልም</b>\n\n` +
+        `ዊዝድሮው ለማድረግ ቢያንስ አንድ ጊዜ <b>50 ብር ወይም ከዚያ በላይ</b> ዲፖዚት ማድረግ ያስፈልጋል።\n\n` +
+        `📌 ዲፖዚት ካደረጉ በኋላ ዊዝድሮው ማድረግ ይቻላል።`,
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
     clearAllSessions(userId);
     withdrawSessions.set(userId, { step: "amount", amount: 0, phone: "", accountName: "" });
     await ctx.reply(
@@ -962,6 +981,25 @@ bot.command("withdraw", async (ctx) => {
       await ctx.reply(
         `⚠️ ለዊዝድሮው ቢያንስ <b>100 ብር</b> Main Balance ያስፈልጋል።\n\n` +
         `💰 Main Balance: <b>${mainBalance.toFixed(2)} ብር</b>`,
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+    // Lifetime deposit requirement: at least one approved deposit >= 50 ETB
+    const qualifyingDeposit = await db
+      .select({ id: pendingDepositsTable.id })
+      .from(pendingDepositsTable)
+      .where(and(
+        eq(pendingDepositsTable.telegramId, user.id),
+        eq(pendingDepositsTable.status, "approved"),
+        sql`${pendingDepositsTable.amount}::numeric >= 50`
+      ))
+      .limit(1);
+    if (!qualifyingDeposit.length) {
+      await ctx.reply(
+        `⛔ <b>ዊዝድሮው ማድረግ አይቻልም</b>\n\n` +
+        `ዊዝድሮው ለማድረግ ቢያንስ አንድ ጊዜ <b>50 ብር ወይም ከዚያ በላይ</b> ዲፖዚት ማድረግ ያስፈልጋል።\n\n` +
+        `📌 ዲፖዚት ካደረጉ በኋላ ዊዝድሮው ማድረግ ይቻላል።`,
         { parse_mode: "HTML" }
       );
       return;
@@ -1954,6 +1992,26 @@ async function handleWithdrawRequest(
   accountName: string
 ) {
   try {
+    // Lifetime deposit requirement: at least one approved deposit >= 50 ETB
+    const qualifyingDeposit = await db
+      .select({ id: pendingDepositsTable.id })
+      .from(pendingDepositsTable)
+      .where(and(
+        eq(pendingDepositsTable.telegramId, telegramId),
+        eq(pendingDepositsTable.status, "approved"),
+        sql`${pendingDepositsTable.amount}::numeric >= 50`
+      ))
+      .limit(1);
+    if (!qualifyingDeposit.length) {
+      await ctx.reply(
+        `⛔ <b>ዊዝድሮው ማድረግ አይቻልም</b>\n\n` +
+        `ዊዝድሮው ለማድረግ ቢያንስ አንድ ጊዜ <b>50 ብር ወይም ከዚያ በላይ</b> ዲፖዚት ማድረግ ያስፈልጋል።\n\n` +
+        `📌 ዲፖዚት ካደረጉ በኋላ ዊዝድሮው ማድረግ ይቻላል።`,
+        { parse_mode: "HTML" }
+      );
+      withdrawSessions.delete(telegramId);
+      return;
+    }
     // Re-check wagering and deduct mainBalance atomically in a transaction
     const txResult = await db.transaction(async (tx) => {
       const rows = await tx.execute(
