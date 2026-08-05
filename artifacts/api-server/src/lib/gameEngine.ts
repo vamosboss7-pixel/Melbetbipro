@@ -186,6 +186,10 @@ export class GameEngine {
     return 2;
   }
 
+  private cfgJackpotEnabled(): boolean {
+    return appSettings.getBool("jackpotEnabled");
+  }
+
   getNamespace(): Server | Namespace {
     return this.ns;
   }
@@ -519,7 +523,11 @@ export class GameEngine {
     // resetRound() runs in a finally block so a jackpot DB failure never leaves
     // the engine stuck in "finished" phase with no way to start a new game.
     try {
-      await this.handleJackpotLogic(roundId, this.roundParticipants, winnerTelegramIds, jackpotContribution, this.roundDeductions);
+      if (this.cfgJackpotEnabled()) {
+        await this.handleJackpotLogic(roundId, this.roundParticipants, winnerTelegramIds, jackpotContribution, this.roundDeductions);
+      } else {
+        logger.info({ roundId, jackpotContribution }, "Jackpot disabled — skipping jackpot logic, commission retained as app revenue");
+      }
     } catch (err) {
       logger.error({ err, roundId }, "Jackpot logic failed — round will still reset");
     } finally {
@@ -907,6 +915,11 @@ export class GameEngine {
   }
 
   async initJackpotPool(): Promise<void> {
+    if (!this.cfgJackpotEnabled()) {
+      this.jackpotPool = 0;
+      logger.info("Jackpot disabled — pool initialised to 0");
+      return;
+    }
     const maxAttempts = 10;
     const delayMs = 2000;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
@@ -964,7 +977,7 @@ export class GameEngine {
       netPrizePool,
       calledBalls: [...this.calledBalls],
       currentBall: this.currentBall,
-      jackpotPool: this.jackpotPool,
+      jackpotPool: this.cfgJackpotEnabled() ? this.jackpotPool : 0,
     };
     this.ns.emit("game_state", state);
   }
@@ -1050,7 +1063,7 @@ export class GameEngine {
       netPrizePool: prizePool - commissionAmount,
       calledBalls: [...this.calledBalls],
       currentBall: this.currentBall,
-      jackpotPool: this.jackpotPool,
+      jackpotPool: this.cfgJackpotEnabled() ? this.jackpotPool : 0,
     });
 
     if (cardIds.length > 0) {

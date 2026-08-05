@@ -29,6 +29,7 @@ export type SettingKey =
   | "inviteBonusAmount"
   | "inviteBonusMinDeposit"
   | "welcomeImageBase64"
+  | "jackpotEnabled"
   | "room1_stakePerCard"
   | "room1_commissionPercent"
   | "room1_countdownSeconds"
@@ -53,6 +54,7 @@ export const SETTING_DEFAULTS: Record<SettingKey, string> = {
   inviteBonusAmount: "0",
   inviteBonusMinDeposit: "0",
   welcomeImageBase64: "",
+  jackpotEnabled: "false",
   room1_stakePerCard: "10",
   room1_commissionPercent: "20",
   room1_countdownSeconds: "30",

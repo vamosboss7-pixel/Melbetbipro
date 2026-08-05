@@ -1022,5 +1022,28 @@ router.get("/admin/room-status", (req: Request, res: Response) => {
   });
 });
 
+// GET /api/admin/jackpot
+router.get("/admin/jackpot", (req: Request, res: Response) => {
+  const telegramId = Number(req.query["telegramId"]);
+  if (!resolveAdmin(req, telegramId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  res.json({ enabled: appSettings.getBool("jackpotEnabled") });
+});
+
+// POST /api/admin/jackpot/toggle
+router.post("/admin/jackpot/toggle", async (req: Request, res: Response) => {
+  const { telegramId } = req.body as { telegramId: number };
+  if (!resolveAdmin(req, telegramId)) { res.status(403).json({ error: "Forbidden" }); return; }
+  try {
+    const current = appSettings.getBool("jackpotEnabled");
+    const next = !current;
+    await appSettings.set("jackpotEnabled", next ? "true" : "false");
+    logger.info({ enabled: next }, "Jackpot toggled by admin");
+    res.json({ ok: true, enabled: next });
+  } catch (err) {
+    logger.error({ err }, "jackpot toggle error");
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
 export { maintenanceEnabled };
 export default router;
