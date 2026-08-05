@@ -113,6 +113,9 @@ export class GameEngine {
   private roundDeductions: Map<number, { main: number; bonus: number; deposit: number }>;
 
   private jackpotPool = 0;
+  // Locked at game-start; stays fixed for the whole playing/finished phase
+  // so the "PLAYERS" chip never jumps as sockets connect/disconnect mid-game.
+  private lockedPlayerCount = 0;
 
   private countdownTimer: ReturnType<typeof setInterval> | null = null;
   private ballTimer: ReturnType<typeof setInterval> | null = null;
@@ -267,6 +270,9 @@ export class GameEngine {
         this.roundParticipants.set(telegramId, { firstName, cardIds: [...cardIds] });
       }
     }
+
+    // Lock the player count once here — never changes until next round.
+    this.lockedPlayerCount = this.roundParticipants.size;
 
     this.broadcastState();
     logger.info({ roundId: this.roundId, participants: this.roundParticipants.size }, "Game started");
@@ -1066,7 +1072,11 @@ export class GameEngine {
       socket.emit("winner_declared", { roundId: this.roundId, winners: this.winners, prizePerWinner: prizePerWinnerJ });
     }
 
-    this.ns.emit("player_count", { count: this.players.size });
+    // During an active game the count is locked; only update it in waiting phase.
+    const joinEmitCount = (this.phase === "playing" || this.phase === "finished")
+      ? this.lockedPlayerCount
+      : this.players.size;
+    this.ns.emit("player_count", { count: joinEmitCount });
 
     if (this.phase === "waiting") {
       socket.emit("cards_taken", { cardIds: this.getAllTakenCardIds() });
@@ -1303,7 +1313,11 @@ export class GameEngine {
   handleDisconnect(socketId: string) {
     const player = this.players.get(socketId);
     this.players.delete(socketId);
-    this.ns.emit("player_count", { count: this.players.size });
+    // During an active game the count is locked; only update it in waiting phase.
+    const emitCount = (this.phase === "playing" || this.phase === "finished")
+      ? this.lockedPlayerCount
+      : this.players.size;
+    this.ns.emit("player_count", { count: emitCount });
     if (player) {
       logger.info({ socketId, telegramId: player.telegramId }, "Player disconnected (state preserved for reconnect)");
     }
@@ -1314,7 +1328,10 @@ export class GameEngine {
       roundId: this.roundId,
       phase: this.phase,
       countdown: this.countdown,
-      playerCount: [...this.players.values()].reduce((s, p) => s + p.cardIds.length, 0),
+      // Use locked count during playing/finished so the chip never changes mid-game.
+      playerCount: (this.phase === "playing" || this.phase === "finished")
+        ? this.lockedPlayerCount
+        : [...this.players.values()].reduce((s, p) => s + p.cardIds.length, 0),
       playersWithCards: this.computePlayersWithCards(),
       prizePool: this.computePrizePool(),
       netPrizePool: this.computeNetPrizePool(),
