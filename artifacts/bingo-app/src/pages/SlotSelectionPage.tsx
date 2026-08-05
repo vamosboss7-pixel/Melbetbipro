@@ -11,6 +11,9 @@ interface GameState {
   phase: 'waiting' | 'playing' | 'finished'
   countdown: number
   playersWithCards: number
+  playerCount: number
+  netPrizePool: number
+  stakePerCard?: number
 }
 
 export default function SlotSelectionPage() {
@@ -26,6 +29,8 @@ export default function SlotSelectionPage() {
   // ── Server-side state ─────────────────────────────────────────────────────
   const [serverCountdown, setServerCountdown] = useState<number>(30)
   const [gamePhase, setGamePhase] = useState<GameState['phase']>('waiting')
+  const [totalCards, setTotalCards] = useState<number>(0)
+  const [netPrizePool, setNetPrizePool] = useState<number>(0)
   const socketRef = useRef<Socket | null>(null)
   const playerRef = useRef(player)
   const selectedSlotsRef = useRef(selectedSlots)
@@ -57,6 +62,8 @@ export default function SlotSelectionPage() {
     socket.on('game_state', (state: GameState & { jackpotPool?: number }) => {
       setServerCountdown(state.countdown)
       setGamePhase(state.phase)
+      setTotalCards(state.playerCount ?? 0)
+      setNetPrizePool(state.netPrizePool ?? 0)
       if (state.jackpotPool != null) setJackpotPool(Number(state.jackpotPool).toFixed(2))
     })
 
@@ -265,6 +272,14 @@ export default function SlotSelectionPage() {
               }}>
                 {gamePhase === 'playing' ? '—' : formatTime(serverCountdown)}
               </span>
+            </div>
+            <div className="stat-chip">
+              <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>🎴 CARDS</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#fff' }}>{totalCards}</span>
+            </div>
+            <div className="stat-chip">
+              <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>🏆 ደራሽ</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#D4A017' }}>{netPrizePool.toFixed(0)} ETB</span>
             </div>
             <div className="stat-chip">
               <span style={{ fontSize: 9, color: '#999', letterSpacing: '0.05em', fontWeight: 600 }}>💰 ETB</span>
