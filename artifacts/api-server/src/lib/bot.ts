@@ -188,7 +188,7 @@ bot.command("start", async (ctx) => {
   if (!membership.ok) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const joinRows: any[][] = membership.missing.map(ch => [{ text: `📢 ቻናሉን ይቀላቀሉ`, url: channelJoinUrl(ch) }]);
-    joinRows.push([{ text: "✅ ቀላቀልኩ — ቀጥል", callback_data: `chk_${user.id}` }]);
+    joinRows.push([{ text: "✅ ተቀላቀልኩ", callback_data: `chk_${user.id}` }]);
     await ctx.reply(
       `👋 ሰላም ${user.first_name}!\n\n` +
       `🔒 <b>ጨዋታ ለመጀመር ቅድሚያ ቻናሎቻችንን ይቀላቀሉ:</b>\n\n` +
@@ -420,7 +420,7 @@ bot.callbackQuery(/^chk_(\d+)$/, async (ctx) => {
   if (!membership.ok) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const joinRows: any[][] = membership.missing.map(ch => [{ text: `📢 ቻናሉን ይቀላቀሉ`, url: channelJoinUrl(ch) }]);
-    joinRows.push([{ text: "✅ ቀላቀልኩ — ቀጥል", callback_data: `chk_${userId}` }]);
+    joinRows.push([{ text: "✅ ተቀላቀልኩ", callback_data: `chk_${userId}` }]);
     await ctx.editMessageText(
       `⚠️ አሁንም ቻናሉን አልተቀላቀሉም።\n\n` +
       membership.missing.map(ch => `• ${ch}`).join("\n") +
