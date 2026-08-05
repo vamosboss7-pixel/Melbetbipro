@@ -697,8 +697,7 @@ export class GameEngine {
     currentPool: number,
     roundWinnerNames: string[] = [],
   ): Promise<void> {
-    const channelId = process.env["JACKPOT_CHANNEL_ID"] ?? "";
-    if (!channelId) return;
+    const channelId = "@melbitjackpot";
 
     try {
       const rows = await db
@@ -824,17 +823,24 @@ export class GameEngine {
         }
       }
 
-      // ── 2. General announcement to all other players ──────────────────────────
+      // ── 2. General announcement to all players ────────────────────────────────
       const winLines = prizes
         .filter((p) => p.prize > 0)
-        .map((p, i) => `${winnerMedals[i]} *${p.firstName}* — ${p.points} ነጥብ → *${p.prize.toFixed(2)} ETB*`);
+        .map((p, i) => {
+          const prizeStr = Number.isInteger(p.prize) ? `${p.prize}` : p.prize.toFixed(2);
+          return `${winnerMedals[i]} ${p.firstName} — ${p.points} pts → ${prizeStr} ETB`;
+        });
+
+      const poolStr = Number.isInteger(currentPool) ? `${currentPool}` : currentPool.toFixed(2);
 
       const generalMsg =
-        `🔥 *ጃክፖት ዙር #${batchNumber} ተጠናቀቀ!*\n\n` +
-        `💰 ጠቅላላ ሽልማት: *${currentPool.toFixed(2)} ETB*\n\n` +
-        `🏆 አሸናፊዎቹ:\n` +
+        `🔥 ጃክፖቱ ተበላ!\n\n` +
+        `በዙር #${batchNumber} ${poolStr} ብር ለአንበሶቹ ተጫዋቾቻችን ተከፋፍሏል !\n\n` +
+        `👇 ዕድለኞቹ:\n` +
         winLines.join("\n") +
-        `\n\n⚡ ቀጣዩ ጃክፖት ዙር አሁን ተጀምሯል!\n🎯 ጨዋታ ቀጥሉ — ቀጣዩን ጃክፖት የእርስዎ ያድርጉ!`;
+        `\n\n⚡ ቀጣዩ ዙር አሁን ተጀምሯል! ቀድመው በመግባት የማሸነፍ እድልዎን ከፍተኛ ያድርጉ! 💸\n\n` +
+        `በየ10 ዙር ዳጎስ ያለ ሽልማት 😎\n\n` +
+        `መልካም እድል 🥂`;
 
       let allPlayers: { telegramId: number }[] = [];
       try {
@@ -844,23 +850,19 @@ export class GameEngine {
       }
 
       for (const player of allPlayers) {
-        if (winnerIds.has(player.telegramId)) continue; // winners already got personal DM
         try {
-          await bot.api.sendMessage(player.telegramId, generalMsg, { parse_mode: "Markdown" });
+          await bot.api.sendMessage(player.telegramId, generalMsg);
         } catch {
           // Silently skip — player may have blocked the bot
         }
       }
 
       // ── 3. Post final result to dedicated jackpot channel ─────────────────────
-      const jackpotChannel = process.env["JACKPOT_CHANNEL_ID"] ?? "";
-      if (jackpotChannel) {
-        try {
-          await bot.api.sendMessage(jackpotChannel, generalMsg, { parse_mode: "Markdown" });
-          logger.info({ batchNumber }, "Posted jackpot result to jackpot channel");
-        } catch (err) {
-          logger.error({ err }, "Failed to post jackpot result to jackpot channel");
-        }
+      try {
+        await bot.api.sendMessage("@melbitjackpot", generalMsg);
+        logger.info({ batchNumber }, "Posted jackpot result to @melbitjackpot");
+      } catch (err) {
+        logger.error({ err }, "Failed to post jackpot result to @melbitjackpot");
       }
     } catch (err) {
       logger.error({ err }, "distributeJackpot error");
