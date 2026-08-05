@@ -57,7 +57,7 @@ export const SETTING_DEFAULTS: Record<SettingKey, string> = {
   room1_commissionPercent: "20",
   room1_countdownSeconds: "30",
   room1_ballIntervalSeconds: "3",
-  room1_minPlayersToStart: "1",
+  room1_minPlayersToStart: "2",
 };
 
 class AppSettings {

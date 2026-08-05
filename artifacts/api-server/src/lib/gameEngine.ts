@@ -237,11 +237,15 @@ export class GameEngine {
         const uniquePlayersWithCards = this.persistentCards.size;
         const totalCardsSelected = [...this.persistentCards.values()].reduce((sum, p) => sum + p.cardIds.length, 0);
         const minPlayers = this.cfgMinPlayersToStart();
-        if (totalCardsSelected >= 1) {
+        if (totalCardsSelected >= 1 && uniquePlayersWithCards >= minPlayers) {
           void this.startGame();
         } else {
           this.countdown = this.cfgCountdownSeconds();
-          logger.info({ roundId: this.roundId, uniquePlayersWithCards, totalCardsSelected, minPlayers }, "No cards selected — resetting countdown");
+          if (totalCardsSelected < 1) {
+            logger.info({ roundId: this.roundId, uniquePlayersWithCards, totalCardsSelected, minPlayers }, "No cards selected — resetting countdown");
+          } else {
+            logger.info({ roundId: this.roundId, uniquePlayersWithCards, totalCardsSelected, minPlayers }, "Not enough players — resetting countdown");
+          }
         }
       }
     }, 1000);
