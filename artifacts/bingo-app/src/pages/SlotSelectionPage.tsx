@@ -124,9 +124,10 @@ export default function SlotSelectionPage() {
   // livePlayBalance tracks the combined total, updated via balance_update socket events.
   const totalBalanceNum = livePlayBalance ?? (player ? (parseFloat(player.depositBalance ?? '0') + parseFloat(player.mainBalance) + parseFloat(player.bonusBalance)) : 0)
 
-  const canAfford = (wantCount: number) => {
+  const canAffordOneMore = () => {
     if (stakePerCard <= 0) return true
-    return totalBalanceNum >= wantCount * stakePerCard
+    // Already-selected cards have been deducted from the balance — check only for 1 more
+    return totalBalanceNum >= stakePerCard
   }
 
   // ── Card selection — emit to server immediately ───────────────────────────
@@ -139,14 +140,18 @@ export default function SlotSelectionPage() {
         return prev.filter(x => x !== n)
       }
       if (prev.length >= 2) return prev
-      if (!canAfford(prev.length + 1)) { setShowNoBalance(true); return prev }
+      if (!canAffordOneMore()) { setShowNoBalance(true); return prev }
       socketRef.current?.emit('select_card', n)
       return [...prev, n]
     })
   }
 
   const randomPick = (count: 1 | 2) => {
-    if (!canAfford(count)) { setShowNoBalance(true); return }
+    // Account for refunds from currently-selected cards before checking affordability
+    const balanceAfterRefund = stakePerCard > 0
+      ? totalBalanceNum + selectedSlotsRef.current.length * stakePerCard
+      : totalBalanceNum
+    if (stakePerCard > 0 && balanceAfterRefund < count * stakePerCard) { setShowNoBalance(true); return }
     const available = Array.from({ length: 500 }, (_, i) => i + 1).filter(n => !takenCards.has(n) && !selectedSlotsRef.current.includes(n))
     const picked = available.sort(() => Math.random() - 0.5).slice(0, count)
     // Deselect old, select new on server
