@@ -4,9 +4,6 @@ import { io, type Socket } from 'socket.io-client'
 import { CARTELAS } from '../data/cartelas'
 import { usePlayer } from '../context/PlayerContext'
 
-// Numbers that are already taken — populated from server data at runtime
-const HIGHLIGHTED = new Set<number>([])
-
 interface GameState {
   phase: 'waiting' | 'playing' | 'finished'
   countdown: number
@@ -31,6 +28,7 @@ export default function SlotSelectionPage() {
   const [gamePhase, setGamePhase] = useState<GameState['phase']>('waiting')
   const [totalCards, setTotalCards] = useState<number>(0)
   const [netPrizePool, setNetPrizePool] = useState<number>(0)
+  const [takenCards, setTakenCards] = useState<Set<number>>(new Set())
   const socketRef = useRef<Socket | null>(null)
   const playerRef = useRef(player)
   const selectedSlotsRef = useRef(selectedSlots)
@@ -72,9 +70,15 @@ export default function SlotSelectionPage() {
       setLivePlayBalance(parseFloat(data.depositBalance ?? '0') + parseFloat(data.mainBalance) + parseFloat(data.bonusBalance))
     })
 
-    // When a round resets, clear local card selection too
+    // Receive which card IDs are already taken by other players
+    socket.on('cards_taken', (data: { cardIds: number[] }) => {
+      setTakenCards(new Set(data.cardIds))
+    })
+
+    // When a round resets, clear local card selection and taken-cards set
     socket.on('round_reset', () => {
       setSelectedSlots([])
+      setTakenCards(new Set())
       setGamePhase('waiting')
     })
 
@@ -127,7 +131,8 @@ export default function SlotSelectionPage() {
 
   // ── Card selection — emit to server immediately ───────────────────────────
   const toggleSlot = (n: number) => {
-    if (HIGHLIGHTED.has(n)) return
+    // Block only if taken by another player; own selected cards must remain deselectable
+    if (takenCards.has(n) && !selectedSlots.includes(n)) return
     setSelectedSlots(prev => {
       if (prev.includes(n)) {
         socketRef.current?.emit('deselect_card', n)
@@ -142,7 +147,7 @@ export default function SlotSelectionPage() {
 
   const randomPick = (count: 1 | 2) => {
     if (!canAfford(count)) { setShowNoBalance(true); return }
-    const available = Array.from({ length: 500 }, (_, i) => i + 1).filter(n => !HIGHLIGHTED.has(n))
+    const available = Array.from({ length: 500 }, (_, i) => i + 1).filter(n => !takenCards.has(n) && !selectedSlotsRef.current.includes(n))
     const picked = available.sort(() => Math.random() - 0.5).slice(0, count)
     // Deselect old, select new on server
     selectedSlotsRef.current.forEach(n => socketRef.current?.emit('deselect_card', n))
@@ -308,7 +313,7 @@ export default function SlotSelectionPage() {
         {/* Number Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 5 }}>
           {numbers.map(n => {
-            const isTaken = HIGHLIGHTED.has(n)
+            const isTaken = takenCards.has(n) && !selectedSlots.includes(n)
             const isSelected = selectedSlots.includes(n)
             return (
               <div
