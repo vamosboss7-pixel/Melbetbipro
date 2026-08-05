@@ -3,6 +3,7 @@ import { useLocation } from 'wouter'
 import { CARTELAS } from '../data/cartelas'
 import { useGame } from '../hooks/useGame'
 import { usePlayer } from '../context/PlayerContext'
+import { useSoundSettings } from '../context/SoundContext'
 
 const BINGO_COLS = ['B', 'I', 'N', 'G', 'O'] as const
 const COL_RANGES: Record<string, [number, number]> = {
@@ -32,7 +33,7 @@ function formatCountdown(s: number) {
 
 export default function GamePage() {
   const [, navigate] = useLocation()
-  const [muted, setMuted] = useState(false)
+  const { bgMusicEnabled, ballSoundEnabled, setBgMusic } = useSoundSettings()
   const audioRef = useRef<HTMLAudioElement | null>(null)
   const ballAudioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -67,18 +68,20 @@ export default function GamePage() {
     }
   }, [winner, navigate])
 
-  // Background music
+  // Background music — react to bgMusicEnabled toggle
   useEffect(() => {
     const audio = new Audio('/audio/bg-music.mp3')
     audio.loop = true
     audio.volume = 0.35
+    audio.muted = !bgMusicEnabled
     audioRef.current = audio
     audio.play().catch(() => {})
     return () => { audio.pause(); audio.src = '' }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
   useEffect(() => {
-    if (audioRef.current) audioRef.current.muted = muted
-  }, [muted])
+    if (audioRef.current) audioRef.current.muted = !bgMusicEnabled
+  }, [bgMusicEnabled])
 
   // Ball call audio — plays /audio/balls/{COL}{NUMBER}.mp3 on each new draw
   useEffect(() => {
@@ -92,18 +95,14 @@ export default function GamePage() {
       ballAudioRef.current.src = ''
     }
 
+    if (!ballSoundEnabled) return
+
     const audio = new Audio(src)
     audio.volume = 1.0
-    audio.muted = muted
     ballAudioRef.current = audio
     audio.play().catch(() => {/* file may not exist yet */})
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState.currentBall])
-
-  // Keep ball audio in sync with mute toggle
-  useEffect(() => {
-    if (ballAudioRef.current) ballAudioRef.current.muted = muted
-  }, [muted])
+  }, [gameState.currentBall, ballSoundEnabled])
 
   const recentBalls = [...gameState.calledBalls]
     .slice(-7)
@@ -145,10 +144,10 @@ export default function GamePage() {
             <StatChip label="CALLED" value={`${gameState.calledBalls.length}/75`} />
             <StatChip label="PRIZE" value={`${gameState.netPrizePool}`} accent="#D4A017" />
             <button
-              onClick={() => setMuted(m => !m)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: muted ? '#e53e3e' : '#888', fontSize: 16, padding: '2px 4px' }}
+              onClick={() => setBgMusic(!bgMusicEnabled)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: bgMusicEnabled ? '#888' : '#e53e3e', fontSize: 16, padding: '2px 4px' }}
             >
-              {muted ? '🔇' : '🔊'}
+              {bgMusicEnabled ? '🔊' : '🔇'}
             </button>
           </div>
         </div>

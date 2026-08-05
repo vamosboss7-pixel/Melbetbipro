@@ -1,5 +1,6 @@
 import { Switch, Route, useLocation } from 'wouter'
 import { PlayerProvider } from './context/PlayerContext'
+import { SoundProvider } from './context/SoundContext'
 import LobbyPage from './pages/LobbyPage'
 import SlotSelectionPage from './pages/SlotSelectionPage'
 import GamePage from './pages/GamePage'
@@ -51,8 +52,10 @@ function AppShell() {
 
 export default function App() {
   return (
-    <PlayerProvider>
-      <AppShell />
-    </PlayerProvider>
+    <SoundProvider>
+      <PlayerProvider>
+        <AppShell />
+      </PlayerProvider>
+    </SoundProvider>
   )
 }

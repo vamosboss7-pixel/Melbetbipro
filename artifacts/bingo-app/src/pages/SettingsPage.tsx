@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { usePlayer } from '../context/PlayerContext'
+import { useSoundSettings } from '../context/SoundContext'
 
 type RowProps = {
   icon: string
@@ -140,7 +141,7 @@ function BalanceOption({
 
 export default function SettingsPage() {
   const { player, updatePlayer } = usePlayer()
-  const [sound, setSound] = useState(true)
+  const { bgMusicEnabled, ballSoundEnabled, setBgMusic, setBallSound } = useSoundSettings()
   const [vibration, setVibration] = useState(true)
   const [notifications, setNotifications] = useState(false)
 
@@ -287,10 +288,16 @@ export default function SettingsPage() {
         </div>
         <div className="game-card" style={{ margin: '0 16px', borderRadius: 12 }}>
           <Row
+            icon="🎵"
+            label="ባክግራውንድ ሙዚቃ"
+            sublabel="የጨዋታ ሙዚቃን ያብሩ/ያጥፉ"
+            right={<Toggle on={bgMusicEnabled} onChange={setBgMusic} />}
+          />
+          <Row
             icon="🔊"
-            label="ድምፅ ተፅዕኖዎች"
-            sublabel="የጨዋታ ድምፆችን ያብሩ/ያጥፉ"
-            right={<Toggle on={sound} onChange={setSound} />}
+            label="ቦል ካል ድምፅ"
+            sublabel="የኳስ ጥሪ ድምፆችን ያብሩ/ያጥፉ"
+            right={<Toggle on={ballSoundEnabled} onChange={setBallSound} />}
           />
           <Row
             icon="📳"
