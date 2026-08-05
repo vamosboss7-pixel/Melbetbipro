@@ -32,3 +32,4 @@ export * from "./lucky_boxes";
 export * from "./daily_checkins";
 export * from "./player_achievements";
 export * from "./jackpot";
+export * from "./deposit_code_attempts";
