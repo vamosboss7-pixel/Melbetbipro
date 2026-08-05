@@ -941,11 +941,12 @@ export class GameEngine {
     const commissionAmount = Math.floor(prizePool * commissionPct / 100);
     const netPrizePool = prizePool - commissionAmount;
 
+    const totalCardsInRound = [...this.players.values()].reduce((s, p) => s + p.cardIds.length, 0);
     const state: BroadcastState = {
       roundId: this.roundId,
       phase: this.phase,
       countdown: this.countdown,
-      playerCount: this.players.size,
+      playerCount: totalCardsInRound,
       playersWithCards,
       prizePool,
       netPrizePool,
@@ -1026,11 +1027,12 @@ export class GameEngine {
     }
     const commissionAmount = Math.floor(prizePool * commissionPct / 100);
 
+    const totalCardsOnJoin = [...this.players.values()].reduce((s, p) => s + p.cardIds.length, 0);
     socket.emit("game_state", {
       roundId: this.roundId,
       phase: this.phase,
       countdown: this.countdown,
-      playerCount: this.players.size,
+      playerCount: totalCardsOnJoin,
       playersWithCards: playersWithCardsCount,
       prizePool,
       netPrizePool: prizePool - commissionAmount,
@@ -1306,7 +1308,7 @@ export class GameEngine {
       roundId: this.roundId,
       phase: this.phase,
       countdown: this.countdown,
-      playerCount: this.players.size,
+      playerCount: [...this.players.values()].reduce((s, p) => s + p.cardIds.length, 0),
       playersWithCards: this.computePlayersWithCards(),
       prizePool: this.computePrizePool(),
       netPrizePool: this.computeNetPrizePool(),
