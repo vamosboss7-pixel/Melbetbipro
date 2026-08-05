@@ -253,8 +253,22 @@ export default function SlotSelectionPage() {
       {/* Header */}
       <div style={{ background: '#1e0909', borderBottom: '1px solid #5c1a1a', padding: '10px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-          {/* User info */}
+          {/* Back button + User info */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            {gamePhase === 'waiting' && (
+              <button
+                onClick={() => navigate('/')}
+                style={{
+                  background: 'none', border: '1.5px solid #5c1a1a', borderRadius: 8,
+                  color: '#aaa', cursor: 'pointer', padding: '5px 8px',
+                  fontSize: 15, lineHeight: 1, flexShrink: 0,
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+                title="ወደ ሎቢ ተመለስ"
+              >
+                ←
+              </button>
+            )}
             <div style={{
               width: 36, height: 36, borderRadius: '50%',
               background: 'linear-gradient(135deg, #c0392b, #ff6b00)',

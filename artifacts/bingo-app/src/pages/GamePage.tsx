@@ -118,6 +118,19 @@ export default function GamePage() {
       {/* Top Header */}
       <div style={{ background: '#1a0708', borderBottom: '1.5px solid #c0392b', boxShadow: '0 2px 10px rgba(192,57,43,0.4)', padding: '8px 10px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {/* Back / Exit button */}
+          <button
+            onClick={() => navigate('/slots')}
+            style={{
+              background: 'none', border: '1.5px solid #5c1a1a', borderRadius: 8,
+              color: '#aaa', cursor: 'pointer', padding: '5px 8px',
+              fontSize: 15, lineHeight: 1, flexShrink: 0,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            title="ወደ ሎቢ ተመለስ"
+          >
+            ←
+          </button>
           <div style={{
             width: 34, height: 34, borderRadius: '50%',
             background: 'linear-gradient(135deg, #c0392b, #ff6b00)',

@@ -1,4 +1,6 @@
 import { useLocation } from 'wouter'
+import { usePlayer } from '../context/PlayerContext'
+import { useGameReconnect } from '../hooks/useGameReconnect'
 
 const INFO_CARDS = [
   {
@@ -41,6 +43,10 @@ const RULES = [
 
 export default function LobbyPage() {
   const [, navigate] = useLocation()
+  const { player } = usePlayer()
+
+  // Auto-redirect back to active game if one is in progress
+  useGameReconnect(player)
 
   return (
     <div
