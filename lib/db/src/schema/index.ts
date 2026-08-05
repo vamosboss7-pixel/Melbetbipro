@@ -33,3 +33,4 @@ export * from "./daily_checkins";
 export * from "./player_achievements";
 export * from "./jackpot";
 export * from "./deposit_code_attempts";
+export * from "./daily_play_bonus";

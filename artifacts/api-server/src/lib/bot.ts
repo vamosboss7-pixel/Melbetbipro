@@ -11,6 +11,7 @@ import {
   depositCodeAttemptsTable,
   luckyBoxSessionsTable,
   luckyBoxClaimsTable,
+  dailyPlayBonusClaimsTable,
   type LuckyBoxClaim,
 } from "@workspace/db/schema";
 import { eq, desc, sql, and, gte, count } from "drizzle-orm";
@@ -2108,5 +2109,79 @@ export async function grantDepositorBonus(telegramId: number, depositAmount: num
     logger.error({ err }, "grantDepositorBonus error");
   }
 }
+
+// ── Daily Play Bonus — claim ──────────────────────────────────────────────────
+// Sent once per day to all players; credits 10 ETB to depositBalance (play-only).
+bot.callbackQuery(/^claim_dpb_(\d+)$/, async (ctx) => {
+  const userId = Number(ctx.match![1]);
+  if (ctx.from.id !== userId) {
+    await ctx.answerCallbackQuery({ text: "❌ ይህ ቦነስ ለእርስዎ አይደለም።", show_alert: true });
+    return;
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+
+  try {
+    // Check if already claimed today
+    const existing = await db
+      .select({ id: dailyPlayBonusClaimsTable.id })
+      .from(dailyPlayBonusClaimsTable)
+      .where(
+        and(
+          eq(dailyPlayBonusClaimsTable.telegramId, userId),
+          eq(dailyPlayBonusClaimsTable.claimDate, today),
+        ),
+      )
+      .limit(1);
+
+    if (existing.length) {
+      await ctx.answerCallbackQuery({ text: "⚠️ ዛሬ ቦነሱን ቀድሞ ወሰደዋሎ። ነገ ዳግም ይመጣል!", show_alert: true });
+      return;
+    }
+
+    // Check player exists
+    const playerRows = await db
+      .select({ telegramId: playersTable.telegramId })
+      .from(playersTable)
+      .where(eq(playersTable.telegramId, userId))
+      .limit(1);
+    if (!playerRows.length) {
+      await ctx.answerCallbackQuery({ text: "❌ አካውንት አልተገኘም። /start ን ይጫኑ።", show_alert: true });
+      return;
+    }
+
+    const BONUS_AMOUNT = 10;
+
+    // Insert claim record (unique constraint prevents double-claim)
+    await db.insert(dailyPlayBonusClaimsTable).values({ telegramId: userId, claimDate: today });
+
+    // Credit depositBalance (non-withdrawable, play-only)
+    await db
+      .update(playersTable)
+      .set({ depositBalance: sql`${playersTable.depositBalance} + ${BONUS_AMOUNT}` })
+      .where(eq(playersTable.telegramId, userId));
+
+    // Ledger entry
+    await db.insert(transactionsTable).values({
+      telegramId: userId,
+      type: "daily_play_bonus",
+      amount: `${BONUS_AMOUNT}`,
+      status: "approved",
+      note: `የዕለቱ 10 ብር የመጫወቻ ቦነስ — ${today}`,
+    });
+
+    await ctx.answerCallbackQuery({ text: `🎉 ${BONUS_AMOUNT} ብር ቦነስ ወደ ዋሌትዎ ተጨምሯል! ይጫወቱ!`, show_alert: true });
+    logger.info({ userId, date: today }, "Daily play bonus claimed");
+  } catch (err: unknown) {
+    // Handle unique-constraint race condition gracefully
+    const msg = (err as Error)?.message ?? "";
+    if (msg.includes("dpb_player_date_uniq") || msg.includes("unique")) {
+      await ctx.answerCallbackQuery({ text: "⚠️ ዛሬ ቦነሱን ቀድሞ ወሰደዋሎ። ነገ ዳግም ይመጣል!", show_alert: true });
+    } else {
+      logger.error({ err }, "daily play bonus claim error");
+      await ctx.answerCallbackQuery({ text: "❌ ስህተት ተፈጥሯል። ዳግም ይሞክሩ።", show_alert: true });
+    }
+  }
+});
 
 bot.catch((err) => { logger.error({ err: err.error }, "Bot error"); });

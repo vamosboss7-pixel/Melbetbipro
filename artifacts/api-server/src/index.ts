@@ -5,7 +5,7 @@ import { bot } from "./lib/bot";
 import { setupGameSocket, initGameEngines } from "./lib/gameSocket";
 import { appSettings } from "./lib/settings";
 import { startAutoReportCron } from "./lib/autoReport";
-import { startAutoScheduleCron } from "./lib/autoSchedule";
+import { startAutoScheduleCron, startDailyPlayBonusCron } from "./lib/autoSchedule";
 import { db } from "./lib/db";
 import { sql } from "drizzle-orm";
 
@@ -354,6 +354,7 @@ httpServer.listen(port, (err?: Error) => {
 
     startAutoReportCron();
     startAutoScheduleCron();
+    startDailyPlayBonusCron();
 
     const replitDomains = process.env["REPLIT_DOMAINS"];
     const webhookDomain = process.env["WEBHOOK_DOMAIN"];

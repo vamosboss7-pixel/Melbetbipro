@@ -1,4 +1,4 @@
-import { pgTable, serial, text, numeric, bigint, timestamp, boolean, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, numeric, bigint, timestamp } from "drizzle-orm/pg-core";
 
 export const autoDepositsTable = pgTable("auto_deposits", {
   id: serial("id").primaryKey(),
@@ -15,11 +15,3 @@ export const autoDepositsTable = pgTable("auto_deposits", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
-export const depositCodeAttemptsTable = pgTable("deposit_code_attempts", {
-  id: serial("id").primaryKey(),
-  telegramId: bigint("telegram_id", { mode: "number" }).notNull(),
-  transactionCode: text("transaction_code").notNull(),
-  isValid: boolean("is_valid").notNull().default(false),
-  attemptCount: integer("attempt_count").notNull().default(1),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
-});
