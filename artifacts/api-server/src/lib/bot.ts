@@ -1535,9 +1535,9 @@ bot.on("message:text", async (ctx) => {
           transferSessions.delete(user.id);
           return;
         }
-        // Deduct from sender mainBalance, credit receiver mainBalance
+        // Deduct from sender mainBalance, credit receiver depositBalance (non-withdrawable, play-only)
         await db.update(playersTable).set({ mainBalance: sql`${playersTable.mainBalance} - ${amount}` }).where(eq(playersTable.telegramId, user.id));
-        await db.update(playersTable).set({ mainBalance: sql`${playersTable.mainBalance} + ${amount}` }).where(eq(playersTable.telegramId, trSession.targetId));
+        await db.update(playersTable).set({ depositBalance: sql`${playersTable.depositBalance} + ${amount}` }).where(eq(playersTable.telegramId, trSession.targetId));
         await db.insert(transactionsTable).values({ telegramId: user.id, type: "transfer_out", amount: `${amount}`, status: "approved", note: `Transfer ${trSession.type} to ${trSession.target} (${trSession.targetId})` });
         await db.insert(transactionsTable).values({ telegramId: trSession.targetId, type: "transfer_in", amount: `${amount}`, status: "approved", note: `Transfer ${trSession.type} from ${user.first_name} (${user.id})` });
         await ctx.reply(
