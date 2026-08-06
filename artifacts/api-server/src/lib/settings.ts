@@ -44,7 +44,7 @@ export const SETTING_DEFAULTS: Record<SettingKey, string> = {
   minAgentWithdrawal: "150",
   commissionPercent: "0",
   stakePerCard: "10",
-  countdownSeconds: "30",
+  countdownSeconds: "60",
   ballIntervalSeconds: "3",
   autoReportHour: "-1",
   reportAdminIds: process.env["ADMIN_TELEGRAM_ID"] ?? "",
@@ -59,7 +59,7 @@ export const SETTING_DEFAULTS: Record<SettingKey, string> = {
   wageringMultiplier: "30",
   room1_stakePerCard: "10",
   room1_commissionPercent: "20",
-  room1_countdownSeconds: "30",
+  room1_countdownSeconds: "60",
   room1_ballIntervalSeconds: "3",
   room1_minPlayersToStart: "2",
 };
