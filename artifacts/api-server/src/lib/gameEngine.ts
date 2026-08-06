@@ -3,8 +3,8 @@ import type { Server, Socket, Namespace } from "socket.io";
 import { logger } from "./logger";
 import { db } from "./db";
 import { CARTELAS } from "../data/cartelas";
-import { playersTable, transactionsTable, gameRoundsTable, jackpotBatchesTable, jackpotPointsTable, jackpotRoundLogTable } from "@workspace/db/schema";
-import { eq, sql, and, desc } from "drizzle-orm";
+import { playersTable, transactionsTable, gameRoundsTable, jackpotBatchesTable, jackpotPointsTable, jackpotRoundLogTable, pendingDepositsTable } from "@workspace/db/schema";
+import { eq, sql, and, desc, inArray } from "drizzle-orm";
 import { appSettings, type RoomId } from "./settings";
 import { bot } from "./bot";
 
@@ -616,16 +616,49 @@ export class GameEngine {
         //   win bonus     = cards × 3  (if winner)
         //   streak bonus  = min(consecutive games in this batch, 8)
         //
-        // Players who used ANY bonus balance are excluded from jackpot points —
-        // bonus-funded play cannot earn jackpot eligibility.
+        // Eligibility rules (any one disqualifies):
+        //   a) Used ANY bonus balance
+        //   b) Did NOT use deposit balance (depositBalance deduction = 0)
+        //   c) Has fewer than 4 approved deposits on their account
         //
+        // Pre-fetch approved-deposit counts for all participants in one query.
+        const participantIds = [...roundParticipants.keys()];
+        const depositCountRows = participantIds.length > 0
+          ? await tx
+              .select({ telegramId: pendingDepositsTable.telegramId, cnt: sql<string>`count(*)` })
+              .from(pendingDepositsTable)
+              .where(and(
+                inArray(pendingDepositsTable.telegramId, participantIds),
+                eq(pendingDepositsTable.status, "approved"),
+              ))
+              .groupBy(pendingDepositsTable.telegramId)
+          : [];
+        const depositCountMap = new Map<number, number>(
+          depositCountRows.map(r => [r.telegramId, Number(r.cnt)])
+        );
+
         // INSERT … ON CONFLICT keeps per-player points safe even if the loop is
         // partially replayed, because the transaction as a whole will roll back
         // on a duplicate roundId before this code is reached a second time.
         for (const [telegramId, participant] of roundParticipants) {
           const deduction = roundDeductions.get(telegramId);
+
+          // Rule a: bonus balance used → ineligible
           if (deduction && deduction.bonus > 0) {
-            logger.info({ telegramId, bonusUsed: deduction.bonus }, "Jackpot: skipping bonus-balance player — not eligible for jackpot points");
+            logger.info({ telegramId, bonusUsed: deduction.bonus }, "Jackpot: skipping — bonus balance used");
+            continue;
+          }
+
+          // Rule b: no deposit balance used → ineligible
+          if (!deduction || deduction.deposit === 0) {
+            logger.info({ telegramId }, "Jackpot: skipping — no deposit balance used in this round");
+            continue;
+          }
+
+          // Rule c: fewer than 4 approved deposits → ineligible
+          const approvedDeposits = depositCountMap.get(telegramId) ?? 0;
+          if (approvedDeposits < 4) {
+            logger.info({ telegramId, approvedDeposits }, "Jackpot: skipping — fewer than 4 approved deposits");
             continue;
           }
           const isWinner = winnerTelegramIds.has(telegramId);
