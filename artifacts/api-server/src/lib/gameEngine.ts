@@ -701,13 +701,9 @@ export class GameEngine {
       .filter((n): n is string => !!n);
 
     try {
-      if (gameCount < 10) {
-        await this.postLeaderboardToChannel(batchId, batchNumber, gameCount, currentPool, roundWinnerNames);
-      } else {
-        // Game 10: post final leaderboard first, then distribute
-        await this.postLeaderboardToChannel(batchId, batchNumber, gameCount, currentPool, roundWinnerNames);
-        await this.distributeJackpot(batchId, batchNumber, currentPool);
-      }
+      // No automatic distribution — jackpot pool accumulates indefinitely.
+      // Leaderboard is posted after every game; distribution is admin-triggered.
+      await this.postLeaderboardToChannel(batchId, batchNumber, gameCount, currentPool, roundWinnerNames);
     } catch (err) {
       logger.error({ err, roundId, gameCount }, "handleJackpotLogic: post-commit step failed");
     }
@@ -736,18 +732,12 @@ export class GameEngine {
       const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
       const lines = rows.map((r, i) => `${medals[i] ?? "•"} ${r.firstName} — ${r.points} ነጥብ`);
 
-      const isFinal = gameCount >= 10;
       const winnerLine = roundWinnerNames.length > 0
         ? `🎯 *የዙሩ አሸናፊ:* ${roundWinnerNames.join(", ")}\n`
         : "";
 
-      const nextLine = isFinal
-        ? `🔔 ጃክፖት ይሰራጫል...`
-        : `📊 ቀጣይ ዙር: ${gameCount + 1}/10`;
-
-      const title = isFinal
-        ? `🏆 *ጃክፖት ሊደርቦርድ — የመጨረሻ ዙር ${gameCount}/10*`
-        : `🏆 *ጃክፖት ሊደርቦርድ — ዙር ${gameCount}/10*`;
+      const nextLine = `📊 ጠቅላላ ዙሮች: ${gameCount}`;
+      const title = `🏆 *ጃክፖት ሊደርቦርድ — ዙር ${gameCount}*`;
 
       const message =
         `${title}\n` +
@@ -759,7 +749,7 @@ export class GameEngine {
         nextLine;
 
       await bot.api.sendMessage(channelId, message, { parse_mode: "Markdown" });
-      logger.info({ gameCount, batchNumber, isFinal }, "Posted jackpot leaderboard to jackpot channel");
+      logger.info({ gameCount, batchNumber }, "Posted jackpot leaderboard to jackpot channel");
     } catch (err) {
       logger.error({ err, channelId }, "Failed to post leaderboard to jackpot channel");
     }
@@ -790,9 +780,10 @@ export class GameEngine {
 
         if (prize > 0) {
           try {
+            // Jackpot prizes go to bonusBalance (non-withdrawable)
             await db
               .update(playersTable)
-              .set({ mainBalance: sql`${playersTable.mainBalance} + ${prize}` })
+              .set({ bonusBalance: sql`${playersTable.bonusBalance} + ${prize}` })
               .where(eq(playersTable.telegramId, player.telegramId));
 
             await db.insert(transactionsTable).values({

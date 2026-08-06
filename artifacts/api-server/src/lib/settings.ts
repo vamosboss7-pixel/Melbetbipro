@@ -58,7 +58,7 @@ export const SETTING_DEFAULTS: Record<SettingKey, string> = {
   jackpotEnabled: "true",
   wageringMultiplier: "30",
   room1_stakePerCard: "10",
-  room1_commissionPercent: "20",
+  room1_commissionPercent: "10",
   room1_countdownSeconds: "60",
   room1_ballIntervalSeconds: "3",
   room1_minPlayersToStart: "2",
