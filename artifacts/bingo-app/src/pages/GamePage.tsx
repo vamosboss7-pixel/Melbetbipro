@@ -45,6 +45,7 @@ export default function GamePage() {
   })
 
   const [jackpotGame, setJackpotGame] = useState<number>(0)
+  const bingoAudioRef = useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     fetch('/api/jackpot/status')
@@ -61,9 +62,16 @@ export default function GamePage() {
   const calledSet = new Set(gameState.calledBalls)
   const COLS = ['B', 'I', 'N', 'G', 'O']
 
-  // Navigate to winner page when winner is declared
+  // Navigate to winner page when winner is declared + play bingo sound
   useEffect(() => {
     if (winner) {
+      // Stop background music
+      if (audioRef.current) audioRef.current.muted = true
+      // Play bingo claim sound
+      const audio = new Audio('/audio/bingo-claim.mp3')
+      audio.volume = 1.0
+      bingoAudioRef.current = audio
+      audio.play().catch(() => {})
       setTimeout(() => navigate('/winner'), 1500)
     }
   }, [winner, navigate])
