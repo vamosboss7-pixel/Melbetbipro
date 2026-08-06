@@ -452,7 +452,7 @@ export class GameEngine {
 
               if (!playerRow.hasActiveWagering) {
                 // First win using bonus — activate 10× wagering requirement
-                const wagerRequired = prize * 30;
+                const wagerRequired = prize * appSettings.getNum("wageringMultiplier");
                 const [updated] = await tx.update(playersTable)
                   .set({
                     bonusBalance: sql`${playersTable.bonusBalance} + ${prize}`,

@@ -1183,6 +1183,9 @@ function SettingsTab() {
               <Input value={S('inviteBonusMinDeposit')} onChange={v => setS('inviteBonusMinDeposit', v)} placeholder="Min deposit (ETB)" type="number" />
             </div>
 
+            <SectionLabel>🎯 Wagering</SectionLabel>
+            <Input value={S('wageringMultiplier')} onChange={v => setS('wageringMultiplier', v)} placeholder="Wagering Multiplier (×)" type="number" />
+
             <SectionLabel>📊 Auto Report</SectionLabel>
             <Input value={S('autoReportHour')} onChange={v => setS('autoReportHour', v)} placeholder="ሰዓት (-1=off, 0-23)" type="number" />
 
