@@ -1077,19 +1077,23 @@ function SettingsTab() {
   const [saving, setSaving] = useState(false)
   const [maintenance, setMaintenance] = useState(false)
   const [toggling, setToggling] = useState(false)
+  const [jackpot, setJackpot] = useState(false)
+  const [togglingJackpot, setTogglingJackpot] = useState(false)
   const [subTab, setSubTab] = useState('game')
   const { msg, show } = useToast()
 
   async function load() {
     setLoading(true)
-    const [gs, rs, ms] = await Promise.all([
+    const [gs, rs, ms, js] = await Promise.all([
       apiGet('/api/admin/settings?telegramId=0'),
       apiGet('/api/admin/room-settings?telegramId=0'),
       apiGet('/api/admin/maintenance?telegramId=0'),
+      apiGet('/api/admin/jackpot?telegramId=0'),
     ])
     setSettings(gs.settings ?? {})
     setRoomSettings(rs.room1 ?? {})
     setMaintenance(ms.enabled ?? false)
+    setJackpot(js.enabled ?? false)
     setLoading(false)
   }
 
@@ -1131,6 +1135,14 @@ function SettingsTab() {
     if (res.ok) { setMaintenance(res.enabled); show(res.enabled ? '🔧 Maintenance ተበርቷል' : '✅ Maintenance ጠፋ') }
     else show(`❌ ${res.error ?? 'ስህተት'}`)
     setToggling(false)
+  }
+
+  async function toggleJackpot() {
+    setTogglingJackpot(true)
+    const res = await apiPost('/api/admin/jackpot/toggle', { telegramId: 0 })
+    if (res.ok) { setJackpot(res.enabled); show(res.enabled ? '🎰 Jackpot ተበርቷል' : '⏸️ Jackpot ዲሴብል ሆኗል') }
+    else show(`❌ ${res.error ?? 'ስህተት'}`)
+    setTogglingJackpot(false)
   }
 
   function S(key: string) { return settings[key] ?? '' }
@@ -1213,28 +1225,53 @@ function SettingsTab() {
       )}
 
       {subTab === 'maintenance' && (
-        <Card>
-          <SectionLabel>🔧 Maintenance Mode</SectionLabel>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', padding: '12px 0' }}>
-            <div style={{
-              width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', fontSize: 36,
-              background: maintenance ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)',
-              border: `2px solid ${maintenance ? '#ef4444' : '#22c55e'}`,
-            }}>
-              {maintenance ? '🔧' : '✅'}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          <Card>
+            <SectionLabel>🎰 Jackpot</SectionLabel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', padding: '12px 0' }}>
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 36,
+                background: jackpot ? 'rgba(234,179,8,0.15)' : 'rgba(107,114,128,0.15)',
+                border: `2px solid ${jackpot ? '#eab308' : '#6b7280'}`,
+              }}>
+                {jackpot ? '🎰' : '⏸️'}
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: jackpot ? '#facc15' : '#9ca3af' }}>
+                {jackpot ? 'Jackpot ተበርቷል' : 'Jackpot ዲሴብል ሆኗል (ለጥገና)'}
+              </div>
+              <div style={{ fontSize: 12, color: '#666', textAlign: 'center', maxWidth: 280 }}>
+                Jackpot ሲዲሴብል ሆን 20% ኮሚሽን የአፑ ገቢ ይሆናል — ምንም ፖል አይሰበሰብም
+              </div>
+              <Btn onClick={toggleJackpot} disabled={togglingJackpot} color={jackpot ? 'red' : 'green'} style={{ minWidth: 180 }}>
+                {togglingJackpot ? '…' : jackpot ? '⏸️ Jackpot ዲሴብል አድርግ' : '🎰 Jackpot አብራ'}
+              </Btn>
             </div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: maintenance ? '#f87171' : '#22c55e' }}>
-              {maintenance ? 'Maintenance ተበርቷል' : 'App ተጫዋቾቹ ዘንድ ክፍት ነው'}
+          </Card>
+
+          <Card>
+            <SectionLabel>🔧 Maintenance Mode</SectionLabel>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', padding: '12px 0' }}>
+              <div style={{
+                width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 36,
+                background: maintenance ? 'rgba(239,68,68,0.15)' : 'rgba(34,197,94,0.15)',
+                border: `2px solid ${maintenance ? '#ef4444' : '#22c55e'}`,
+              }}>
+                {maintenance ? '🔧' : '✅'}
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 700, color: maintenance ? '#f87171' : '#22c55e' }}>
+                {maintenance ? 'Maintenance ተበርቷል' : 'App ተጫዋቾቹ ዘንድ ክፍት ነው'}
+              </div>
+              <div style={{ fontSize: 12, color: '#666', textAlign: 'center', maxWidth: 280 }}>
+                Maintenance mode ሲቃና ተጫዋቾች አዲስ ጨዋታ መጀመር አይችሉም
+              </div>
+              <Btn onClick={toggleMaintenance} disabled={toggling} color={maintenance ? 'green' : 'red'} style={{ minWidth: 180 }}>
+                {toggling ? '…' : maintenance ? '✅ Maintenance አንሳ' : '🔧 Maintenance አብራ'}
+              </Btn>
             </div>
-            <div style={{ fontSize: 12, color: '#666', textAlign: 'center', maxWidth: 280 }}>
-              Maintenance mode ሲቃና ተጫዋቾች አዲስ ጨዋታ መጀመር አይችሉም
-            </div>
-            <Btn onClick={toggleMaintenance} disabled={toggling} color={maintenance ? 'green' : 'red'} style={{ minWidth: 180 }}>
-              {toggling ? '…' : maintenance ? '✅ Maintenance አንሳ' : '🔧 Maintenance አብራ'}
-            </Btn>
-          </div>
-        </Card>
+          </Card>
+        </div>
       )}
     </div>
   )

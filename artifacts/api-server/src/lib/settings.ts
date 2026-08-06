@@ -55,7 +55,7 @@ export const SETTING_DEFAULTS: Record<SettingKey, string> = {
   inviteBonusAmount: "0",
   inviteBonusMinDeposit: "0",
   welcomeImageBase64: "",
-  jackpotEnabled: "false",
+  jackpotEnabled: "true",
   wageringMultiplier: "30",
   room1_stakePerCard: "10",
   room1_commissionPercent: "20",
