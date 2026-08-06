@@ -153,7 +153,7 @@ export default function GamePage() {
             </div>
           </div>
           <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
-            <StatChip label="PLAYERS" value={String(gameState.playerCount)} />
+            <StatChip label="CARDS" value={String(gameState.playersWithCards)} />
             <StatChip label="CALLED" value={`${gameState.calledBalls.length}/75`} />
             <StatChip label="PRIZE" value={`${gameState.netPrizePool}`} accent="#D4A017" />
             <button
