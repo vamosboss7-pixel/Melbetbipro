@@ -30,6 +30,14 @@ export type SettingKey =
   | "inviteBonusMinDeposit"
   | "welcomeImageBase64"
   | "jackpotEnabled"
+  | "jackpotFinalGame"
+  | "jackpotChannelId"
+  | "jackpotParticipationPoints"
+  | "jackpotWinBonusPoints"
+  | "jackpotStreakMax"
+  | "jackpotFirstPrizePercent"
+  | "jackpotSecondPrizePercent"
+  | "jackpotThirdPrizePercent"
   | "wageringMultiplier"
   | "room1_stakePerCard"
   | "room1_commissionPercent"
@@ -56,6 +64,14 @@ export const SETTING_DEFAULTS: Record<SettingKey, string> = {
   inviteBonusMinDeposit: "0",
   welcomeImageBase64: "",
   jackpotEnabled: "true",
+  jackpotFinalGame: "10",
+  jackpotChannelId: process.env["JACKPOT_CHANNEL_ID"] ?? "@melbitjackpot",
+  jackpotParticipationPoints: "4",
+  jackpotWinBonusPoints: "3",
+  jackpotStreakMax: "8",
+  jackpotFirstPrizePercent: "50",
+  jackpotSecondPrizePercent: "30",
+  jackpotThirdPrizePercent: "20",
   wageringMultiplier: "30",
   room1_stakePerCard: "10",
   room1_commissionPercent: "10",

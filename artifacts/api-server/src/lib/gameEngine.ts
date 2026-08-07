@@ -190,6 +190,10 @@ export class GameEngine {
     return appSettings.getBool("jackpotEnabled");
   }
 
+  private cfgJackpotFinalGame(): number {
+    return Math.max(1, Math.floor(appSettings.getNum("jackpotFinalGame")));
+  }
+
   getNamespace(): Server | Namespace {
     return this.ns;
   }
@@ -539,7 +543,8 @@ export class GameEngine {
 
   /**
    * Called at the end of every game. Awards points, funds the jackpot pool,
-   * posts leaderboard after games 1–9, and distributes + resets after game 10.
+   * posts the leaderboard, and distributes + resets on the admin-configured
+   * final game.
    *
    * Idempotency: the entire batch-increment + point-award block runs inside a
    * single DB transaction. The first step is inserting `roundId` into
@@ -626,7 +631,7 @@ export class GameEngine {
         for (const [telegramId, participant] of roundParticipants) {
           const deduction = roundDeductions.get(telegramId);
 
-          // Rule a: bonus balance used → ineligible
+           // Rule a: bonus balance used → ineligible
           if (deduction && deduction.bonus > 0) {
             logger.info({ telegramId, bonusUsed: deduction.bonus }, "Jackpot: skipping — bonus balance used");
             continue;
@@ -640,8 +645,8 @@ export class GameEngine {
 
           const isWinner = winnerTelegramIds.has(telegramId);
           const cards = participant.cardIds.length;
-          const participationPts = cards * 4;
-          const winBonus = isWinner ? cards * 3 : 0;
+           const participationPts = cards * appSettings.getNum("jackpotParticipationPoints");
+           const winBonus = isWinner ? cards * appSettings.getNum("jackpotWinBonusPoints") : 0;
           const firstGamePoints = participationPts + winBonus + 1; // streak=1 on first game
 
           await tx.execute(sql`
@@ -651,17 +656,17 @@ export class GameEngine {
               (${txBatchId}, ${txBatchNumber}, ${telegramId}, ${participant.firstName},
                ${firstGamePoints}, 1, ${txGameCount}, NOW(), NOW())
             ON CONFLICT (batch_id, telegram_id) DO UPDATE SET
-              streak_count    = CASE
+               streak_count    = CASE
                                   WHEN jackpot_points.last_game_count = ${txGameCount} - 1
-                                    THEN LEAST(jackpot_points.streak_count + 1, 8)
+                                     THEN LEAST(jackpot_points.streak_count + 1, ${appSettings.getNum("jackpotStreakMax")})
                                   ELSE 1
                                 END,
               points          = jackpot_points.points
                                   + ${participationPts}
                                   + ${winBonus}
                                   + CASE
-                                      WHEN jackpot_points.last_game_count = ${txGameCount} - 1
-                                        THEN LEAST(jackpot_points.streak_count + 1, 8)
+                                       WHEN jackpot_points.last_game_count = ${txGameCount} - 1
+                                         THEN LEAST(jackpot_points.streak_count + 1, ${appSettings.getNum("jackpotStreakMax")})
                                       ELSE 1
                                     END,
               last_game_count = ${txGameCount},
@@ -691,7 +696,7 @@ export class GameEngine {
       throw err;
     }
 
-    // ── 3. Post leaderboard (games 1–10) or distribute jackpot (game 10) ──────
+    // ── 3. Post leaderboard and distribute on the configured final game ────────
     // These run outside the transaction: they're external side-effects (Telegram
     // messages, balance credits) that must not block the DB commit.
 
@@ -701,9 +706,11 @@ export class GameEngine {
       .filter((n): n is string => !!n);
 
     try {
-      // No automatic distribution — jackpot pool accumulates indefinitely.
-      // Leaderboard is posted after every game; distribution is admin-triggered.
-      await this.postLeaderboardToChannel(batchId, batchNumber, gameCount, currentPool, roundWinnerNames);
+      if (gameCount >= this.cfgJackpotFinalGame()) {
+        await this.distributeJackpot(batchId, batchNumber, currentPool);
+      } else {
+        await this.postLeaderboardToChannel(batchId, batchNumber, gameCount, currentPool, roundWinnerNames);
+      }
     } catch (err) {
       logger.error({ err, roundId, gameCount }, "handleJackpotLogic: post-commit step failed");
     }
@@ -717,7 +724,7 @@ export class GameEngine {
     currentPool: number,
     roundWinnerNames: string[] = [],
   ): Promise<void> {
-    const channelId = "@melbitjackpot";
+    const channelId = appSettings.get("jackpotChannelId");
 
     try {
       const rows = await db
@@ -770,7 +777,11 @@ export class GameEngine {
         .orderBy(desc(jackpotPointsTable.points))
         .limit(3);
 
-      const splits = [0.5, 0.3, 0.2]; // 50% / 30% / 20%
+      const splits = [
+        appSettings.getNum("jackpotFirstPrizePercent") / 100,
+        appSettings.getNum("jackpotSecondPrizePercent") / 100,
+        appSettings.getNum("jackpotThirdPrizePercent") / 100,
+      ];
       const prizes: Array<{ telegramId: number; firstName: string; points: number; prize: number }> = [];
 
       for (let i = 0; i < top3.length; i++) {
@@ -874,10 +885,11 @@ export class GameEngine {
 
       // ── 3. Post final result to dedicated jackpot channel ─────────────────────
       try {
-        await bot.api.sendMessage("@melbitjackpot", generalMsg);
-        logger.info({ batchNumber }, "Posted jackpot result to @melbitjackpot");
+        const channelId = appSettings.get("jackpotChannelId");
+        await bot.api.sendMessage(channelId, generalMsg);
+        logger.info({ batchNumber, channelId }, "Posted jackpot result to jackpot channel");
       } catch (err) {
-        logger.error({ err }, "Failed to post jackpot result to @melbitjackpot");
+        logger.error({ err }, "Failed to post jackpot result to configured channel");
       }
     } catch (err) {
       logger.error({ err }, "distributeJackpot error");

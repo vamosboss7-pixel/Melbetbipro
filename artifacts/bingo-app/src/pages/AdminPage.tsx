@@ -1079,6 +1079,9 @@ function SettingsTab() {
   const [toggling, setToggling] = useState(false)
   const [jackpot, setJackpot] = useState(false)
   const [togglingJackpot, setTogglingJackpot] = useState(false)
+  const [jackpotSettings, setJackpotSettings] = useState<Record<string, string>>({})
+  const [jackpotBatch, setJackpotBatch] = useState<{ batchNumber: number; gameCount: number; pool: number } | null>(null)
+  const [savingJackpot, setSavingJackpot] = useState(false)
   const [subTab, setSubTab] = useState('game')
   const { msg, show } = useToast()
 
@@ -1094,6 +1097,8 @@ function SettingsTab() {
     setRoomSettings(rs.room1 ?? {})
     setMaintenance(ms.enabled ?? false)
     setJackpot(js.enabled ?? false)
+    setJackpotSettings(Object.fromEntries(Object.entries(js.settings ?? {}).map(([key, value]) => [key, String(value)])))
+    setJackpotBatch(js.activeBatch ?? null)
     setLoading(false)
   }
 
@@ -1145,10 +1150,32 @@ function SettingsTab() {
     setTogglingJackpot(false)
   }
 
+  async function saveJackpotSettings() {
+    setSavingJackpot(true)
+    const res = await apiPut('/api/admin/jackpot/settings', {
+      telegramId: 0,
+      settings: {
+        finalGame: jackpotSettings.finalGame,
+        channelId: jackpotSettings.channelId,
+        participationPoints: jackpotSettings.participationPoints,
+        winBonusPoints: jackpotSettings.winBonusPoints,
+        streakMax: jackpotSettings.streakMax,
+        firstPrizePercent: jackpotSettings.firstPrizePercent,
+        secondPrizePercent: jackpotSettings.secondPrizePercent,
+        thirdPrizePercent: jackpotSettings.thirdPrizePercent,
+      },
+    })
+    if (res.ok) show('✅ የጃክፖት ሴቲንጎች ተቀምጠዋል')
+    else show(`❌ ${res.error ?? 'ስህተት'}`)
+    setSavingJackpot(false)
+  }
+
   function S(key: string) { return settings[key] ?? '' }
   function R(key: string) { return roomSettings[key] ?? '' }
   function setS(key: string, v: string) { setSettings(p => ({ ...p, [key]: v })) }
   function setR(key: string, v: string) { setRoomSettings(p => ({ ...p, [key]: v })) }
+  function J(key: string) { return jackpotSettings[key] ?? '' }
+  function setJ(key: string, v: string) { setJackpotSettings(p => ({ ...p, [key]: v })) }
 
   if (loading) return <div style={{ textAlign: 'center', color: '#666', padding: 32 }}>እየጫነ…</div>
 
@@ -1156,7 +1183,7 @@ function SettingsTab() {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
       <Toast msg={msg} />
       <SubTabBar
-        tabs={[{ key: 'game', label: '⚙️ Game Settings' }, { key: 'room', label: '🚪 Room 1' }, { key: 'maintenance', label: '🔧 Maintenance' }]}
+        tabs={[{ key: 'game', label: '⚙️ Game Settings' }, { key: 'room', label: '🚪 Room 1' }, { key: 'jackpot', label: '🎰 Jackpot' }, { key: 'maintenance', label: '🔧 Maintenance' }]}
         active={subTab} onChange={setSubTab}
       />
 
@@ -1224,31 +1251,52 @@ function SettingsTab() {
         </Card>
       )}
 
+      {subTab === 'jackpot' && (
+        <Card>
+          <SectionLabel>🎰 የጃክፖት ሙሉ ሴቲንግ</SectionLabel>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 10, background: jackpot ? 'rgba(234,179,8,0.1)' : 'rgba(107,114,128,0.12)', border: `1px solid ${jackpot ? 'rgba(234,179,8,0.35)' : 'rgba(107,114,128,0.35)'}` }}>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: jackpot ? '#facc15' : '#aaa' }}>{jackpot ? '🎰 Jackpot በርቷል' : '⏸️ Jackpot ጠፍቷል'}</div>
+                  <div style={{ fontSize: 11, color: '#777', marginTop: 2 }}>ጃክፖት ካጠፉ ኮሚሽኑ የአፑ ገቢ ይሆናል</div>
+                </div>
+                <Btn onClick={toggleJackpot} disabled={togglingJackpot} color={jackpot ? 'red' : 'green'} style={{ whiteSpace: 'nowrap' }}>
+                  {togglingJackpot ? '…' : jackpot ? '⏸️ አጥፋ' : '🎰 አብራ'}
+                </Btn>
+              </div>
+            <div style={{ padding: '10px 12px', borderRadius: 10, background: 'rgba(234,179,8,0.08)', border: '1px solid rgba(234,179,8,0.2)', color: '#d9c27a', fontSize: 12, lineHeight: 1.5 }}>
+              ከታች ያለው የመጨረሻ ጨዋታ ሲደርስ ጃክፖቱ በራሱ ይከፋፈላል። የሽልማት መቶኛዎች ድምር 100% መሆን አለበት።
+            </div>
+            {jackpotBatch && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', color: '#aaa', fontSize: 12 }}>
+                <span style={{ padding: '7px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.06)' }}>Batch #{jackpotBatch.batchNumber}</span>
+                <span style={{ padding: '7px 10px', borderRadius: 8, background: 'rgba(255,255,255,0.06)' }}>ጨዋታ {jackpotBatch.gameCount}/{J('finalGame')}</span>
+                <span style={{ padding: '7px 10px', borderRadius: 8, background: 'rgba(234,179,8,0.12)', color: '#facc15' }}>{jackpotBatch.pool.toFixed(2)} ETB</span>
+              </div>
+            )}
+            <Input value={J('finalGame')} onChange={v => setJ('finalGame', v)} placeholder="የመጨረሻ ዙር (ለምሳሌ 10)" type="number" />
+            <Input value={J('channelId')} onChange={v => setJ('channelId', v)} placeholder="የTelegram ቻናል (@channel ወይም ID)" />
+            <SectionLabel>⭐ የነጥብ ስሌት</SectionLabel>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Input value={J('participationPoints')} onChange={v => setJ('participationPoints', v)} placeholder="በካርድ የተሳትፎ ነጥብ" type="number" />
+              <Input value={J('winBonusPoints')} onChange={v => setJ('winBonusPoints', v)} placeholder="የአሸናፊ ተጨማሪ ነጥብ" type="number" />
+            </div>
+            <Input value={J('streakMax')} onChange={v => setJ('streakMax', v)} placeholder="የተከታታይ ጨዋታ ከፍተኛ ነጥብ" type="number" />
+            <SectionLabel>🏆 የሽልማት መከፋፈያ (%)</SectionLabel>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Input value={J('firstPrizePercent')} onChange={v => setJ('firstPrizePercent', v)} placeholder="1ኛ ቦታ %" type="number" />
+              <Input value={J('secondPrizePercent')} onChange={v => setJ('secondPrizePercent', v)} placeholder="2ኛ ቦታ %" type="number" />
+              <Input value={J('thirdPrizePercent')} onChange={v => setJ('thirdPrizePercent', v)} placeholder="3ኛ ቦታ %" type="number" />
+            </div>
+            <Btn onClick={saveJackpotSettings} disabled={savingJackpot} color="gold">
+              {savingJackpot ? 'እያስቀምጥ…' : '💾 የጃክፖት ሴቲንግ ቀምጥ'}
+            </Btn>
+          </div>
+        </Card>
+      )}
+
       {subTab === 'maintenance' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <Card>
-            <SectionLabel>🎰 Jackpot</SectionLabel>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', padding: '12px 0' }}>
-              <div style={{
-                width: 80, height: 80, borderRadius: '50%', display: 'flex', alignItems: 'center',
-                justifyContent: 'center', fontSize: 36,
-                background: jackpot ? 'rgba(234,179,8,0.15)' : 'rgba(107,114,128,0.15)',
-                border: `2px solid ${jackpot ? '#eab308' : '#6b7280'}`,
-              }}>
-                {jackpot ? '🎰' : '⏸️'}
-              </div>
-              <div style={{ fontSize: 14, fontWeight: 700, color: jackpot ? '#facc15' : '#9ca3af' }}>
-                {jackpot ? 'Jackpot ተበርቷል' : 'Jackpot ዲሴብል ሆኗል (ለጥገና)'}
-              </div>
-              <div style={{ fontSize: 12, color: '#666', textAlign: 'center', maxWidth: 280 }}>
-                Jackpot ሲዲሴብል ሆን 20% ኮሚሽን የአፑ ገቢ ይሆናል — ምንም ፖል አይሰበሰብም
-              </div>
-              <Btn onClick={toggleJackpot} disabled={togglingJackpot} color={jackpot ? 'red' : 'green'} style={{ minWidth: 180 }}>
-                {togglingJackpot ? '…' : jackpot ? '⏸️ Jackpot ዲሴብል አድርግ' : '🎰 Jackpot አብራ'}
-              </Btn>
-            </div>
-          </Card>
-
           <Card>
             <SectionLabel>🔧 Maintenance Mode</SectionLabel>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center', padding: '12px 0' }}>
