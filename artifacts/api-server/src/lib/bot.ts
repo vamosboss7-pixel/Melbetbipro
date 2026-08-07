@@ -46,6 +46,35 @@ const _botDomain = (
 );
 export const USE_POLLING = !_botDomain || _botDomain.includes("riker.replit.dev") || _botDomain.includes(".replit.dev");
 
+/**
+ * Resolve the Telegram Mini App URL from the MINI_APP_URL environment variable.
+ * The value may be either a full HTTPS URL or a hostname.
+ *
+ * Do not use the webhook domain as a fallback here: webhook and Mini App URLs
+ * are separate settings, and a webhook-only domain can make Telegram show a
+ * button that cannot open the app.
+ */
+export function getMiniAppUrl(): string | null {
+  const configuredUrl = process.env["MINI_APP_URL"]?.trim();
+  if (!configuredUrl) return null;
+
+  const candidate = /^https?:\/\//i.test(configuredUrl)
+    ? configuredUrl
+    : `https://${configuredUrl}`;
+
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:") {
+      logger.warn({ configuredUrl }, "MINI_APP_URL must use HTTPS");
+      return null;
+    }
+    return url.toString().replace(/\/$/, "");
+  } catch {
+    logger.warn({ configuredUrl }, "MINI_APP_URL is not a valid URL");
+    return null;
+  }
+}
+
 const ADMIN_ID = 8228419622;
 const MAIN_ADMIN_TELEGRAM_ID = Number(process.env["MAIN_ADMIN_TELEGRAM_ID"] ?? "0");
 const CHANNEL_ID = process.env["ANNOUNCEMENT_CHANNEL_ID"] ?? "";
@@ -272,8 +301,7 @@ bot.command("start", async (ctx) => {
     await bot.api.deleteMessage(ctx.chat.id, rmMsg.message_id);
   } catch { /* non-fatal */ }
 
-  const miniAppUrl = (process.env["MINI_APP_URL"] ?? _botDomain)?.trim() || null;
-  const appUrl = miniAppUrl ? `https://${miniAppUrl}` : null;
+  const appUrl = getMiniAppUrl();
 
   const playUrl = appUrl
     ? (forwardParam ? `${appUrl}?startapp=${forwardParam}` : appUrl)
