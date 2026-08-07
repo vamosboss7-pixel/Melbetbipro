@@ -75,8 +75,14 @@ export function getMiniAppUrl(): string | null {
   }
 }
 
-const ADMIN_ID = 8228419622;
-const MAIN_ADMIN_TELEGRAM_ID = Number(process.env["MAIN_ADMIN_TELEGRAM_ID"] ?? "0");
+// Keep the existing owner ID as a safe local fallback so the admin flow does
+// not silently disappear when the optional ID variables were not added after
+// importing the project. Environment variables still take precedence.
+const DEFAULT_ADMIN_ID = 8228419622;
+const ADMIN_ID = Number(process.env["ADMIN_TELEGRAM_ID"] ?? DEFAULT_ADMIN_ID);
+const MAIN_ADMIN_TELEGRAM_ID = Number(
+  process.env["MAIN_ADMIN_TELEGRAM_ID"] ?? ADMIN_ID,
+);
 const CHANNEL_ID = process.env["ANNOUNCEMENT_CHANNEL_ID"] ?? "";
 const LUCKY_BOX_CHANNEL_ID = process.env["LUCKY_BOX_CHANNEL_ID"] ?? CHANNEL_ID;
 const BONUS_CHANNEL_USERNAME = process.env["BONUS_CHANNEL_USERNAME"] ?? "@melkameBingoAgents";
@@ -713,6 +719,24 @@ bot.callbackQuery(/^cmd_admin_(\d+)$/, async (ctx) => {
   await ctx.reply(
     `🔐 <b>Admin Panel</b>\n\nፓስወርድ ያስገቡ:`,
     { parse_mode: "HTML" }
+  );
+});
+
+// ── /admin command ────────────────────────────────────────────────────────────
+// The button is not available in older Telegram menu messages, so keep a
+// direct command as a reliable way to start the password session.
+bot.command("admin", async (ctx) => {
+  const user = ctx.from;
+  if (!user) return;
+  if (user.id !== MAIN_ADMIN_TELEGRAM_ID) {
+    await ctx.reply("❌ ይህን ትእዛዝ ለመጠቀም ፈቃድ የለዎትም።");
+    return;
+  }
+  clearAllSessions(user.id);
+  adminPasswordSessions.add(user.id);
+  await ctx.reply(
+    `🔐 <b>Admin Panel</b>\n\nፓስወርድ ያስገቡ:`,
+    { parse_mode: "HTML" },
   );
 });
 
@@ -1481,17 +1505,20 @@ bot.on("message:text", async (ctx) => {
     adminPasswordSessions.delete(user.id);
     const adminPassword = process.env["ADMIN_PASSWORD"];
     if (!adminPassword) {
+      logger.error({ telegramId: user.id }, "Admin login failed: ADMIN_PASSWORD is not configured");
       await ctx.reply("❌ ADMIN_PASSWORD አልተዋቀረም። ቢሮ ያነጋግሩ።");
       return;
     }
     if (text !== adminPassword) {
+      logger.warn({ telegramId: user.id }, "Admin login rejected: incorrect password");
       await ctx.reply("❌ ፓስወርድ ትክክል አይደለም።");
       return;
     }
     // Password correct — send mini-app admin page link
-    const miniAppUrl = (process.env["MINI_APP_URL"] ?? _botDomain)?.trim() || null;
-    const adminUrl = miniAppUrl ? `https://${miniAppUrl}/admin` : null;
+    const miniAppUrl = getMiniAppUrl();
+    const adminUrl = miniAppUrl ? `${miniAppUrl}/admin` : null;
     if (!adminUrl) {
+      logger.error({ telegramId: user.id }, "Admin login succeeded but MINI_APP_URL is missing or invalid");
       await ctx.reply("❌ MINI_APP_URL አልተዋቀረም።");
       return;
     }
