@@ -534,35 +534,93 @@ router.get("/admin/players/:telegramId/detail", async (req: Request, res: Respon
   const targetId = Number(req.params["telegramId"]);
   if (!targetId || isNaN(targetId)) { res.status(400).json({ error: "Invalid telegramId" }); return; }
   try {
-    const [playerRows, deposits, withdrawals, transactions, gameRounds, invitedByRows, inviteCount] = await Promise.all([
+    const [playerRows, deposits, withdrawals, transactions, gameRounds, inviteCount, gameSummary, transactionSummary, pendingDepositsSummary, pendingWithdrawalsSummary] = await Promise.all([
       db.select().from(playersTable).where(eq(playersTable.telegramId, targetId)).limit(1),
       db.select().from(pendingDepositsTable).where(eq(pendingDepositsTable.telegramId, targetId)).orderBy(desc(pendingDepositsTable.createdAt)).limit(30),
       db.select().from(pendingWithdrawalsTable).where(eq(pendingWithdrawalsTable.telegramId, targetId)).orderBy(desc(pendingWithdrawalsTable.createdAt)).limit(30),
       db.select().from(transactionsTable).where(eq(transactionsTable.telegramId, targetId)).orderBy(desc(transactionsTable.createdAt)).limit(30),
       db.select().from(gameRoundsTable).where(eq(gameRoundsTable.telegramId, targetId)).orderBy(desc(gameRoundsTable.createdAt)).limit(20),
-      Promise.resolve([]),
       db.select({ cnt: sql<number>`count(*)` }).from(playersTable).where(eq(playersTable.invitedBy, targetId)),
+      db.select({
+        totalGames: sql<number>`COUNT(*)::int`,
+        totalWins: sql<number>`COUNT(*) FILTER (WHERE ${gameRoundsTable.result} = 'won')::int`,
+        totalStakes: sql<string>`COALESCE(SUM(${gameRoundsTable.stake}::numeric), 0)`,
+        totalPrizes: sql<string>`COALESCE(SUM(${gameRoundsTable.prize}::numeric), 0)`,
+        lastGameAt: sql<string | null>`MAX(${gameRoundsTable.createdAt})`,
+      }).from(gameRoundsTable).where(eq(gameRoundsTable.telegramId, targetId)),
+      db.select({
+        totalIn: sql<string>`COALESCE(SUM(CASE WHEN ${transactionsTable.type} IN ('deposit', 'win', 'bonus', 'register_bonus', 'invite_bonus', 'adjustment', 'withdrawal_refund') THEN ${transactionsTable.amount}::numeric ELSE 0 END), 0)`,
+        totalOut: sql<string>`COALESCE(SUM(CASE WHEN ${transactionsTable.type} IN ('withdraw', 'withdrawal_approved', 'stake') THEN ${transactionsTable.amount}::numeric ELSE 0 END), 0)`,
+        stakeTransactions: sql<number>`COUNT(*) FILTER (WHERE ${transactionsTable.type} = 'stake')::int`,
+        winTransactions: sql<number>`COUNT(*) FILTER (WHERE ${transactionsTable.type} = 'win')::int`,
+      }).from(transactionsTable).where(and(
+        eq(transactionsTable.telegramId, targetId),
+        eq(transactionsTable.status, "approved"),
+      )),
+      db.select({
+        pendingDeposits: sql<number>`COUNT(*)::int`,
+      }).from(pendingDepositsTable).where(and(
+        eq(pendingDepositsTable.telegramId, targetId),
+        eq(pendingDepositsTable.status, "pending"),
+      )),
+      db.select({
+        pendingWithdrawals: sql<number>`COUNT(*)::int`,
+      }).from(pendingWithdrawalsTable).where(and(
+        eq(pendingWithdrawalsTable.telegramId, targetId),
+        eq(pendingWithdrawalsTable.status, "pending"),
+      )),
     ]);
     if (!playerRows.length) { res.status(404).json({ error: "Player not found" }); return; }
     const player = playerRows[0]!;
 
-    // fetch inviter name if any
     let inviterName: string | null = null;
     if (player.invitedBy) {
-      const inviterRows = await db.select({ firstName: playersTable.firstName }).from(playersTable).where(eq(playersTable.telegramId, player.invitedBy)).limit(1);
+      const inviterRows = await db.select({ firstName: playersTable.firstName })
+        .from(playersTable)
+        .where(eq(playersTable.telegramId, player.invitedBy))
+        .limit(1);
       inviterName = inviterRows[0]?.firstName ?? null;
     }
-
-    const totalGames = gameRounds.length;
-    const totalWins = gameRounds.filter(r => r.result === "won").length;
+    const gameTotals = gameSummary[0];
+    const transactionTotals = transactionSummary[0];
     const approvedDeposits = deposits.filter(d => d.status === "approved");
     const totalDeposited = approvedDeposits.reduce((s, d) => s + Number(d.amount), 0);
     const approvedWithdrawals = withdrawals.filter(w => w.status === "approved");
     const totalWithdrawn = approvedWithdrawals.reduce((s, w) => s + Number(w.amount), 0);
+    const wageringRequired = Number(player.wageringRequired ?? 0);
+    const wageringCompleted = Number(player.wageringCompleted ?? 0);
+    const wageringRemaining = Math.max(0, wageringRequired - wageringCompleted);
+    const wageringProgress = wageringRequired > 0
+      ? Math.min(100, (wageringCompleted / wageringRequired) * 100)
+      : 0;
 
     res.json({
       player,
-      stats: { totalGames, totalWins, totalDeposited, totalWithdrawn, inviteCount: Number(inviteCount[0]?.cnt ?? 0) },
+      stats: {
+        totalGames: Number(gameTotals?.totalGames ?? 0),
+        totalWins: Number(gameTotals?.totalWins ?? 0),
+        totalLosses: Number(gameTotals?.totalGames ?? 0) - Number(gameTotals?.totalWins ?? 0),
+        totalStakes: Number(gameTotals?.totalStakes ?? 0),
+        totalPrizes: Number(gameTotals?.totalPrizes ?? 0),
+        netGameResult: Number(gameTotals?.totalPrizes ?? 0) - Number(gameTotals?.totalStakes ?? 0),
+        lastGameAt: gameTotals?.lastGameAt ?? null,
+        totalDeposited,
+        totalWithdrawn,
+        inviteCount: Number(inviteCount[0]?.cnt ?? 0),
+        approvedTransactionIn: Number(transactionTotals?.totalIn ?? 0),
+        approvedTransactionOut: Number(transactionTotals?.totalOut ?? 0),
+        stakeTransactions: Number(transactionTotals?.stakeTransactions ?? 0),
+        winTransactions: Number(transactionTotals?.winTransactions ?? 0),
+        pendingDeposits: Number(pendingDepositsSummary[0]?.pendingDeposits ?? 0),
+        pendingWithdrawals: Number(pendingWithdrawalsSummary[0]?.pendingWithdrawals ?? 0),
+      },
+      wagering: {
+        required: wageringRequired,
+        completed: wageringCompleted,
+        remaining: wageringRemaining,
+        progress: wageringProgress,
+        active: Boolean(player.hasActiveWagering),
+      },
       inviterName,
       deposits,
       withdrawals,
@@ -574,6 +632,7 @@ router.get("/admin/players/:telegramId/detail", async (req: Request, res: Respon
     res.status(500).json({ error: "Internal server error" });
   }
 });
+
 
 // GET /api/admin/players/search — main admin only
 router.get("/admin/players/search", async (req: Request, res: Response) => {

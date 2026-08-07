@@ -464,17 +464,28 @@ function WithdrawalsTab() {
 // ──────────────────────────────────────────────
 interface PlayerRow {
   telegramId: number; firstName: string; lastName?: string; username?: string
-  mainBalance: string; bonusBalance?: string; playBalance?: string; agentBalance?: string
-  role: string; createdAt: string; invitedBy?: number
+  depositBalance?: string; mainBalance: string; bonusBalance?: string; agentBalance?: string
+  wageringRequired?: string; wageringCompleted?: string; hasActiveWagering?: boolean
+  totalInviteBonus?: string; preferredBalance?: string; isActive?: boolean
+  role: string; createdAt: string; updatedAt?: string; invitedBy?: number
 }
 
 interface PlayerDetail {
   player: PlayerRow
-  stats: { totalGames: number; totalWins: number; totalDeposited: number; totalWithdrawn: number; inviteCount: number }
+  stats: {
+    totalGames: number; totalWins: number; totalLosses: number
+    totalStakes: number; totalPrizes: number; netGameResult: number
+    totalDeposited: number; totalWithdrawn: number; inviteCount: number
+    approvedTransactionIn: number; approvedTransactionOut: number
+    stakeTransactions: number; winTransactions: number
+    pendingDeposits: number; pendingWithdrawals: number; lastGameAt?: string | null
+  }
+  wagering: { required: number; completed: number; remaining: number; progress: number; active: boolean }
   inviterName?: string
   deposits: { id: number; amount: string; status: string; createdAt: string }[]
   withdrawals: { id: number; amount: string; status: string; createdAt: string; phone: string }[]
   transactions: { id: number; type: string; amount: string; status: string; note?: string; createdAt: string }[]
+  gameRounds?: { id: number; roundId: string; roomId: string; cardIds: string; stake: string; result: string; prize: string; createdAt: string }[]
 }
 
 function PlayerDetailModal({ telegramId, onClose }: { telegramId: number; onClose: () => void }) {
@@ -555,21 +566,61 @@ function PlayerDetailModal({ telegramId, onClose }: { telegramId: number; onClos
 
               {/* Balances */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <StatCard label="Main Balance" value={`${Number(data.player.mainBalance).toFixed(0)}`} color="#22c55e" sub="ETB" />
-                <StatCard label="Bonus" value={`${Number(data.player.bonusBalance ?? 0).toFixed(0)}`} color="#f97316" sub="ETB" />
-                <StatCard label="Play Bal." value={`${Number(data.player.playBalance ?? 0).toFixed(0)}`} color="#60a5fa" sub="ETB" />
+                <StatCard label="Withdrawable" value={`${Number(data.player.mainBalance).toFixed(2)}`} color="#22c55e" sub="ETB" />
+                <StatCard label="Deposit / Play" value={`${Number(data.player.depositBalance ?? 0).toFixed(2)}`} color="#60a5fa" sub="ETB" />
+                <StatCard label="Bonus" value={`${Number(data.player.bonusBalance ?? 0).toFixed(2)}`} color="#f97316" sub="ETB" />
+                <StatCard label="Agent Wallet" value={`${Number(data.player.agentBalance ?? 0).toFixed(2)}`} color="#a78bfa" sub="ETB" />
               </div>
 
-              {/* Stats */}
+              {/* Wagering progress */}
+              <Card style={{ border: `1px solid ${data.wagering.active ? 'rgba(249,115,22,0.35)' : 'rgba(255,255,255,0.08)'}` }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                  <SectionLabel>🎯 Wagering Status</SectionLabel>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: data.wagering.active ? '#f97316' : '#22c55e' }}>
+                    {data.wagering.active ? 'ACTIVE' : 'COMPLETED / NONE'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#aaa', marginBottom: 6 }}>
+                  <span>Completed: <b style={{ color: '#fff' }}>{data.wagering.completed.toFixed(2)} ETB</b></span>
+                  <span>Required: <b style={{ color: '#fff' }}>{data.wagering.required.toFixed(2)} ETB</b></span>
+                </div>
+                <div style={{ height: 8, background: 'rgba(255,255,255,0.08)', borderRadius: 8, overflow: 'hidden' }}>
+                  <div style={{ width: `${data.wagering.progress}%`, height: '100%', background: data.wagering.active ? '#f97316' : '#22c55e', borderRadius: 8 }} />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6, fontSize: 11, color: '#888' }}>
+                  <span>{data.wagering.progress.toFixed(0)}% complete</span>
+                  <span>{data.wagering.remaining.toFixed(2)} ETB remaining</span>
+                </div>
+              </Card>
+
+              {/* Game and financial stats */}
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <StatCard label="ጨዋታዎች" value={data.stats.totalGames} color="#D4A017" />
                 <StatCard label="ድሎች" value={data.stats.totalWins} color="#22c55e" />
+                <StatCard label="Losses" value={data.stats.totalLosses} color="#f87171" />
                 <StatCard label="ሪፈር" value={data.stats.inviteCount} color="#a78bfa" />
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <StatCard label="ዲፖዚት" value={`${data.stats.totalDeposited.toFixed(0)}`} color="#f97316" sub="ETB" />
-                <StatCard label="ዊዝድሮው" value={`${data.stats.totalWithdrawn.toFixed(0)}`} color="#60a5fa" sub="ETB" />
+                <StatCard label="Total Stakes" value={`${data.stats.totalStakes.toFixed(2)}`} color="#f97316" sub="ETB" />
+                <StatCard label="Total Prizes" value={`${data.stats.totalPrizes.toFixed(2)}`} color="#22c55e" sub="ETB" />
+                <StatCard label="Net Game" value={`${data.stats.netGameResult.toFixed(2)}`} color={data.stats.netGameResult >= 0 ? '#22c55e' : '#f87171'} sub="ETB" />
               </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <StatCard label="ዲፖዚት" value={`${data.stats.totalDeposited.toFixed(2)}`} color="#f97316" sub="ETB" />
+                <StatCard label="ዊዝድሮው" value={`${data.stats.totalWithdrawn.toFixed(2)}`} color="#60a5fa" sub="ETB" />
+                <StatCard label="Pending" value={data.stats.pendingDeposits + data.stats.pendingWithdrawals} color="#facc15" sub="requests" />
+              </div>
+              <Card>
+                <SectionLabel>📊 Account Activity Summary</SectionLabel>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 16px', fontSize: 12 }}>
+                  <div style={{ color: '#888' }}>Balance order <b style={{ color: '#ddd', float: 'right' }}>{data.player.preferredBalance === 'bonus_first' ? 'Bonus first' : 'Main first'}</b></div>
+                  <div style={{ color: '#888' }}>Status <b style={{ color: data.player.isActive === false ? '#f87171' : '#22c55e', float: 'right' }}>{data.player.isActive === false ? 'Inactive' : 'Active'}</b></div>
+                  <div style={{ color: '#888' }}>Stake records <b style={{ color: '#ddd', float: 'right' }}>{data.stats.stakeTransactions}</b></div>
+                  <div style={{ color: '#888' }}>Win records <b style={{ color: '#ddd', float: 'right' }}>{data.stats.winTransactions}</b></div>
+                  <div style={{ color: '#888' }}>Invite bonus total <b style={{ color: '#ddd', float: 'right' }}>{Number(data.player.totalInviteBonus ?? 0).toFixed(2)} ETB</b></div>
+                  <div style={{ color: '#888' }}>Last game <b style={{ color: '#ddd', float: 'right' }}>{data.stats.lastGameAt ? new Date(data.stats.lastGameAt).toLocaleDateString('am-ET') : '—'}</b></div>
+                </div>
+              </Card>
 
               {/* Balance adjust */}
               <div>
@@ -610,11 +661,17 @@ function PlayerDetailModal({ telegramId, onClose }: { telegramId: number; onClos
                 <div>
                   <SectionLabel>📋 የቅርብ ጊዜ ግብይቶች</SectionLabel>
                   {data.transactions.slice(0, 8).map(t => (
-                    <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 12 }}>
-                      <span style={{ color: '#aaa' }}>{t.type}</span>
-                      <span style={{ color: t.type.includes('deduct') || t.type === 'withdrawal_approved' ? '#f87171' : '#22c55e', fontWeight: 700 }}>
-                        {Number(t.amount).toFixed(0)} ETB
-                      </span>
+                    <div key={t.id} style={{ padding: '7px 0', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#aaa' }}>{t.type}</span>
+                        <span style={{ color: t.type.includes('deduct') || t.type === 'stake' || t.type.includes('withdraw') ? '#f87171' : '#22c55e', fontWeight: 700 }}>
+                          {Number(t.amount).toFixed(2)} ETB
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#555', fontSize: 10, marginTop: 2 }}>
+                        <span>{t.status}{t.note ? ` · ${t.note}` : ''}</span>
+                        <span>{new Date(t.createdAt).toLocaleString('am-ET')}</span>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -681,7 +738,13 @@ function PlayersTab() {
                 <div style={{ fontSize: 11, color: '#a78bfa', marginTop: 1 }}>{p.role}</div>
               </div>
               <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#22c55e' }}>{Number(p.mainBalance).toFixed(0)} <span style={{ fontSize: 10, color: '#666' }}>ETB</span></div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: '#22c55e' }}>{Number(p.mainBalance).toFixed(2)} <span style={{ fontSize: 10, color: '#666' }}>ETB</span></div>
+                <div style={{ fontSize: 10, color: '#60a5fa', marginTop: 2 }}>Play {Number(p.depositBalance ?? 0).toFixed(2)} · Bonus {Number(p.bonusBalance ?? 0).toFixed(2)}</div>
+                <div style={{ fontSize: 10, color: p.hasActiveWagering ? '#f97316' : '#666', marginTop: 2 }}>
+                  {p.hasActiveWagering
+                    ? `Wager ${Number(p.wageringCompleted ?? 0).toFixed(0)}/${Number(p.wageringRequired ?? 0).toFixed(0)}`
+                    : 'Wagering inactive'}
+                </div>
                 <Btn onClick={() => setDetailId(p.telegramId)} color="ghost" style={{ marginTop: 6, fontSize: 11, padding: '5px 10px' }}>ዝርዝር →</Btn>
               </div>
             </div>
