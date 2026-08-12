@@ -11,7 +11,7 @@
 html, body, #root {
   height: 100%;
   width: 100%;
-  background: #180608;
+  background: #071a16;
 }
 
 body {
@@ -29,32 +29,32 @@ body {
   width: 4px;
 }
 ::-webkit-scrollbar-track {
-  background: #1a0608;
+  background: #0a211b;
 }
 ::-webkit-scrollbar-thumb {
-  background: #5c1a1a;
+  background: #1e5b47;
   border-radius: 2px;
 }
 
 /* Game background radial glow */
 .game-bg {
-  background: radial-gradient(ellipse at 50% 40%, #2e0d10 0%, #180608 65%);
+  background: radial-gradient(ellipse at 50% 40%, #123b2e 0%, #071a16 65%);
   min-height: 100vh;
 }
 
 /* Card styles */
 .game-card {
-  background: #250d0d;
-  border: 1.5px solid #c0392b;
+  background: #12372d;
+  border: 1.5px solid #2d6b57;
   border-radius: 12px;
-  box-shadow: 0 0 10px rgba(192, 57, 43, 0.45), inset 0 0 6px rgba(192, 57, 43, 0.1);
+  box-shadow: 0 0 10px rgba(45, 156, 113, 0.22), inset 0 0 6px rgba(45, 156, 113, 0.08);
 }
 
 /* Gold gradient button */
 .btn-enter {
-  background: linear-gradient(to right, #c0392b, #ff6b00);
+  background: linear-gradient(to right, #d9e52b, #f4d52b);
   border-radius: 50px;
-  color: white;
+  color: #10271f;
   font-weight: 700;
   letter-spacing: 0.1em;
 }
@@ -66,7 +66,7 @@ body {
 
 /* Icon squares */
 .icon-sq {
-  background: #b91c1c;
+  background: #1f6d52;
   border-radius: 8px;
   display: flex;
   align-items: center;
@@ -76,8 +76,8 @@ body {
 
 /* Slot grid cell */
 .slot-cell {
-  background: #2a0e0e;
-  border: 1px solid #4a1515;
+  background: #15392f;
+  border: 1px solid #285b4a;
   border-radius: 6px;
   color: #e2e2e2;
   font-size: 12px;
@@ -91,15 +91,15 @@ body {
 }
 
 .slot-cell.highlighted {
-  border-color: #ff8c00;
-  color: #ff8c00;
-  box-shadow: 0 0 6px rgba(255, 140, 0, 0.35);
+  border-color: #e4e72b;
+  color: #e4e72b;
+  box-shadow: 0 0 6px rgba(228, 231, 43, 0.35);
 }
 
 /* Ball matrix cell */
 .ball-cell {
-  background: #2a0e0e;
-  border: 1px solid #3a1212;
+  background: #15392f;
+  border: 1px solid #214b3e;
   border-radius: 4px;
   color: #ccc;
   font-size: 11px;
@@ -112,22 +112,22 @@ body {
 }
 
 .ball-cell.called {
-  background: #b91c1c;
-  border-color: #e53e3e;
+  background: #1f6d52;
+  border-color: #f4ed51;
   color: #fff;
 }
 
 .ball-cell.latest {
-  background: #ff6b00;
-  border-color: #ff8c00;
+  background: #f1d82a;
+  border-color: #e4e72b;
   color: #fff;
-  box-shadow: 0 0 8px rgba(255, 107, 0, 0.5);
+  box-shadow: 0 0 8px rgba(241, 216, 42, 0.45);
 }
 
 /* Bingo card cell */
 .bingo-cell {
-  background: #2a0e0e;
-  border: 1px solid #4a1515;
+  background: #15392f;
+  border: 1px solid #285b4a;
   border-radius: 6px;
   display: flex;
   align-items: center;
@@ -138,20 +138,20 @@ body {
 }
 
 .bingo-cell.matched {
-  background: #b91c1c;
-  border-color: #e53e3e;
+  background: #1f6d52;
+  border-color: #f4ed51;
   color: #fff;
 }
 
 .bingo-cell.free {
-  background: #3d1010;
-  border-color: #6b2020;
+  background: #1e4c3b;
+  border-color: #3a8062;
   color: #d4a017;
 }
 
 /* Dashed circle */
 .dashed-circle {
-  border: 2px dashed #5c1a1a;
+  border: 2px dashed #34755b;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -160,7 +160,7 @@ body {
 
 /* Cartela slot placeholder */
 .cartela-placeholder {
-  border: 2px dashed #5c1a1a;
+  border: 2px dashed #34755b;
   border-radius: 12px;
   display: flex;
   flex-direction: column;
@@ -172,8 +172,8 @@ body {
 
 /* Stat chip */
 .stat-chip {
-  background: #1e0909;
-  border: 1px solid #5c1a1a;
+  background: #102d24;
+  border: 1px solid #2b624e;
   border-radius: 8px;
   padding: 4px 10px;
   display: flex;
@@ -206,7 +206,41 @@ body {
 /* Progress bar fill */
 .progress-fill {
   height: 100%;
-  background: linear-gradient(to right, #c0392b, #ff6b00);
+  background: linear-gradient(to right, #d9e52b, #f4d52b);
   border-radius: 4px;
   transition: width 1s linear;
+}
+
+.admin-user-total {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  background: rgba(212, 160, 23, 0.1);
+  border: 1px solid rgba(212, 160, 23, 0.28);
+  border-radius: 8px;
+  color: #d4a017;
+}
+
+.admin-user-total-icon {
+  font-size: 12px;
+}
+
+.admin-user-total-value {
+  font-family: 'Oswald', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.admin-user-total-label {
+  color: #aaa;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+@media (max-width: 380px) {
+  .admin-user-total-label {
+    display: none;
+  }
 }

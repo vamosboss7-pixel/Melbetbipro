@@ -1582,6 +1582,13 @@ const TABS: { key: MainTab; emoji: string; label: string }[] = [
 
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [tab, setTab] = useState<MainTab>('deposits')
+  const [playerTotal, setPlayerTotal] = useState<number | null>(null)
+
+  useEffect(() => {
+    apiGet('/api/admin/stats?telegramId=0')
+      .then(data => setPlayerTotal(data.players?.total ?? null))
+      .catch(() => setPlayerTotal(null))
+  }, [])
 
   return (
     <div style={{
@@ -1600,6 +1607,11 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
             🛡 ADMIN PANEL
           </h1>
           <p style={{ fontSize: 10, color: '#555', margin: 0 }}>መልካም Bingo</p>
+        </div>
+        <div className="admin-user-total" aria-label="ጠቅላላ ተጫዋቾች">
+          <span className="admin-user-total-icon" aria-hidden="true">👥</span>
+          <span className="admin-user-total-value">{playerTotal ?? '—'}</span>
+          <span className="admin-user-total-label">ተጫዋቾች</span>
         </div>
         <button
           onClick={onLogout}
