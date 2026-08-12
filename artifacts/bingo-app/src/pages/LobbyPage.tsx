@@ -52,7 +52,7 @@ export default function LobbyPage() {
     <div
       style={{
         minHeight: '100vh',
-        background: 'radial-gradient(ellipse at 50% 35%, #2e0d10 0%, #180608 70%)',
+        background: 'radial-gradient(ellipse at 50% 35%, #123b2e 0%, #071a16 70%)',
         display: 'flex',
         flexDirection: 'column',
         padding: '0 16px 100px',
@@ -68,19 +68,19 @@ export default function LobbyPage() {
             <path
               d="M4 38 L10 14 L20 26 L28 6 L36 26 L46 14 L52 38 Z"
               fill="none"
-              stroke="#E91E8C"
+              stroke="#e4e72b"
               strokeWidth="2.5"
               strokeLinejoin="round"
             />
             <path
               d="M4 38 L10 14 L20 26 L28 6 L36 26 L46 14 L52 38"
-              fill="#E91E8C"
+              fill="#e4e72b"
               fillOpacity="0.15"
             />
-            <rect x="2" y="38" width="52" height="6" rx="2" fill="#E91E8C" />
-            <circle cx="4" cy="38" r="3" fill="#FF69B4" />
-            <circle cx="28" cy="6" r="3" fill="#FF69B4" />
-            <circle cx="52" cy="38" r="3" fill="#FF69B4" />
+            <rect x="2" y="38" width="52" height="6" rx="2" fill="#e4e72b" />
+            <circle cx="4" cy="38" r="3" fill="#f4ed51" />
+            <circle cx="28" cy="6" r="3" fill="#f4ed51" />
+            <circle cx="52" cy="38" r="3" fill="#f4ed51" />
           </svg>
         </div>
 
@@ -91,7 +91,7 @@ export default function LobbyPage() {
             fontSize: 36,
             fontWeight: 800,
             letterSpacing: '0.08em',
-            color: '#D4A017',
+            color: '#e4e72b',
             textAlign: 'center',
             lineHeight: 1.1,
             marginBottom: 4,
@@ -106,7 +106,7 @@ export default function LobbyPage() {
           style={{
             fontSize: 12,
             fontStyle: 'italic',
-            color: '#C8960A',
+            color: '#c7d52a',
             letterSpacing: '0.18em',
             textAlign: 'center',
             marginBottom: 32,
@@ -159,7 +159,7 @@ export default function LobbyPage() {
                   style={{
                     fontSize: 16,
                     fontWeight: 700,
-                    color: '#D4A017',
+                    color: '#e4e72b',
                     letterSpacing: '0.04em',
                   }}
                 >
@@ -189,7 +189,7 @@ export default function LobbyPage() {
                 width: 10,
                 height: 10,
                 borderRadius: '50%',
-                background: '#e53e3e',
+                background: '#e4e72b',
                 flexShrink: 0,
               }}
             />
@@ -238,7 +238,7 @@ export default function LobbyPage() {
           width: '100%',
           maxWidth: 480,
           padding: '16px 16px 12px',
-          background: 'linear-gradient(to top, #180608 70%, transparent)',
+          background: 'linear-gradient(to top, #071a16 70%, transparent)',
         }}
       >
         <button
