@@ -210,3 +210,37 @@ body {
   border-radius: 4px;
   transition: width 1s linear;
 }
+
+.admin-user-total {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 8px;
+  background: rgba(212, 160, 23, 0.1);
+  border: 1px solid rgba(212, 160, 23, 0.28);
+  border-radius: 8px;
+  color: #d4a017;
+}
+
+.admin-user-total-icon {
+  font-size: 12px;
+}
+
+.admin-user-total-value {
+  font-family: 'Oswald', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.admin-user-total-label {
+  color: #aaa;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+@media (max-width: 380px) {
+  .admin-user-total-label {
+    display: none;
+  }
+}
