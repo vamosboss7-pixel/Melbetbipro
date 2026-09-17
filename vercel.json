@@ -1,6 +1,6 @@
 {
   "buildCommand": "pnpm run build",
-  "outputDirectory": "artifacts/api-server/dist/public",
+  "outputDirectory": "artifacts/bingo-app/dist/public",
   "framework": null,
   "cleanUrls": true
 }
