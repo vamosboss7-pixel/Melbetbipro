@@ -1,0 +1,6 @@
+{
+  "buildCommand": "pnpm run build",
+  "outputDirectory": "artifacts/api-server/dist/public",
+  "framework": null,
+  "cleanUrls": true
+}
