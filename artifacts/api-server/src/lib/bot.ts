@@ -50,13 +50,22 @@ export const USE_POLLING = !_botDomain || _botDomain.includes("riker.replit.dev"
  * Resolve the Telegram Mini App URL from the MINI_APP_URL environment variable.
  * The value may be either a full HTTPS URL or a hostname.
  *
- * Do not use the webhook domain as a fallback here: webhook and Mini App URLs
- * are separate settings, and a webhook-only domain can make Telegram show a
- * button that cannot open the app.
+ * Use the explicitly configured URL first, then fall back to the public host
+ * supplied by the deployment platform. This keeps the Play button functional
+ * when a platform provides its public hostname but MINI_APP_URL was omitted.
  */
 export function getMiniAppUrl(): string | null {
-  const configuredUrl = process.env["MINI_APP_URL"]?.trim();
-  if (!configuredUrl) return null;
+  const configuredUrl = (
+    process.env["MINI_APP_URL"]?.trim() ||
+    process.env["RENDER_EXTERNAL_HOSTNAME"]?.trim() ||
+    process.env["RAILWAY_PUBLIC_DOMAIN"]?.trim() ||
+    process.env["REPLIT_DOMAINS"]?.split(",")[0]?.trim() ||
+    ""
+  );
+  if (!configuredUrl) {
+    logger.warn("No public Mini App URL configured; Play button cannot open the app");
+    return null;
+  }
 
   const candidate = /^https?:\/\//i.test(configuredUrl)
     ? configuredUrl
@@ -366,7 +375,7 @@ bot.command("start", async (ctx) => {
     `🔄 <b>Transfer</b> — ወደ ሌላ ላኩ\n` +
     `📣 <b>Join Channel</b> — ቻናሉን ይቀላቀሉ\n` +
     `🎧 <b>Support</b> — እርዳታ ይጠይቁ\n\n` +
-    `👇 ከታቹ ቁልፍ ይምረጡ`;
+    `👇 ከ��ቹ ቁልፍ ይምረጡ`;
 
   // Short caption for photo messages (Telegram limit: 1024 chars)
   const welcomeCaption =
@@ -676,7 +685,7 @@ bot.callbackQuery(/^cmd_promo_(\d+)$/, async (ctx) => {
   await ctx.answerCallbackQuery();
   clearAllSessions(userId);
   promoSessions.add(userId);
-  await ctx.reply(`🎟 ፕሮሞ ኮድ ያስገቡ:\n\nኮዱን ጽፈው ይላኩ 👇`);
+  await ctx.reply(`🎟 ፕ���ሞ ኮድ ያስገቡ:\n\nኮዱን ጽፈው ይላኩ 👇`);
 });
 
 // ── Support button ─────────────────────────────────────────────────────────────
@@ -1108,7 +1117,7 @@ bot.command("pendingwithdraw", async (ctx) => {
     for (const w of withdrawals) {
       const kb = new InlineKeyboard().text("✅ ልከዋለሁ", `approvew_${w.id}`).text("❌ ሰርዝ", `rejectw_${w.id}`);
       await ctx.reply(
-        `📤 <b>Withdrawal #${w.id}</b>\n👤 ${w.firstName} (${w.telegramId})\n💸 <b>${Number(w.amount).toFixed(0)} ብር</b>\n📞 Telebirr: <code>${w.phone}</code>\n🏷 አካውንት ሆልደር: <b>${w.accountName || "—"}</b>`,
+        `📤 <b>Withdrawal #${w.id}</b>\n👤 ${w.firstName} (${w.telegramId})\n💸 <b>${Number(w.amount).toFixed(0)} ብር</b>\n📞 Telebirr: <code>${w.phone}</code>\n🏷 አካውንት ሆል��ር: <b>${w.accountName || "—"}</b>`,
         { parse_mode: "HTML", reply_markup: kb }
       );
     }
