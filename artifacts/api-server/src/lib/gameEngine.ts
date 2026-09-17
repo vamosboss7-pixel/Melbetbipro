@@ -247,7 +247,11 @@ export class GameEngine {
       if (this.countdown <= 0) {
         const uniquePlayersWithCards = this.persistentCards.size;
         const totalCardsSelected = [...this.persistentCards.values()].reduce((sum, p) => sum + p.cardIds.length, 0);
-        const minPlayers = this.cfgMinPlayersToStart();
+        // A purchased card is enough to start the round after the countdown.
+        // Keep the configured value for logging/administration, but do not leave
+        // a single-player room stuck indefinitely when no second player joins.
+        const configuredMinPlayers = this.cfgMinPlayersToStart();
+        const minPlayers = Math.min(1, configuredMinPlayers);
         if (totalCardsSelected >= 1 && uniquePlayersWithCards >= minPlayers) {
           void this.startGame();
         } else {
