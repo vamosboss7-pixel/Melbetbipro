@@ -18,6 +18,25 @@ body {
   font-family: 'Oswald', sans-serif;
   color: #fff;
   -webkit-font-smoothing: antialiased;
+  perspective: 1200px;
+}
+
+button, .game-card, .slot-cell, .bingo-cell, .stat-chip, .icon-sq {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible, .slot-cell:focus-visible {
+  outline: 2px solid #f4ed51;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 .font-condensed {
@@ -38,16 +57,43 @@ body {
 
 /* Game background radial glow */
 .game-bg {
-  background: radial-gradient(ellipse at 50% 40%, #123b2e 0%, #071a16 65%);
+  background:
+    radial-gradient(circle at 15% 8%, rgba(228, 231, 43, 0.08), transparent 24%),
+    radial-gradient(circle at 85% 20%, rgba(45, 156, 113, 0.18), transparent 28%),
+    radial-gradient(ellipse at 50% 40%, #123b2e 0%, #071a16 65%);
   min-height: 100vh;
 }
 
-/* Card styles */
+/* Layered surfaces give the compact game UI a tactile, premium depth. */
 .game-card {
-  background: #12372d;
-  border: 1.5px solid #2d6b57;
-  border-radius: 12px;
-  box-shadow: 0 0 10px rgba(45, 156, 113, 0.22), inset 0 0 6px rgba(45, 156, 113, 0.08);
+  position: relative;
+  isolation: isolate;
+  background: linear-gradient(145deg, rgba(25, 76, 60, 0.98), rgba(13, 43, 34, 0.98));
+  border: 1px solid rgba(92, 190, 143, 0.42);
+  border-radius: 14px;
+  box-shadow:
+    0 10px 18px rgba(0, 0, 0, 0.24),
+    0 2px 0 rgba(132, 231, 180, 0.14) inset,
+    0 -8px 18px rgba(0, 0, 0, 0.12) inset,
+    0 0 18px rgba(45, 156, 113, 0.13);
+  transform: translateZ(0);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+.game-card::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: -1;
+  border-radius: inherit;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.1), transparent 30%, transparent 70%, rgba(228, 231, 43, 0.04));
+  pointer-events: none;
+}
+
+.game-card:hover {
+  border-color: rgba(228, 231, 43, 0.52);
+  box-shadow: 0 14px 24px rgba(0, 0, 0, 0.3), 0 0 22px rgba(45, 156, 113, 0.2);
+  transform: translateY(-2px);
 }
 
 /* Gold gradient button */
@@ -59,26 +105,40 @@ body {
   letter-spacing: 0.1em;
 }
 
+.btn-enter {
+  box-shadow: 0 7px 0 #9a8d15, 0 12px 20px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.45);
+  transition: transform 140ms ease, box-shadow 140ms ease, filter 140ms ease;
+}
+
+.btn-enter:hover {
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+}
+
 .btn-enter:active {
-  opacity: 0.9;
-  transform: scale(0.98);
+  opacity: 0.95;
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #9a8d15, 0 6px 12px rgba(0, 0, 0, 0.22);
 }
 
 /* Icon squares */
 .icon-sq {
-  background: #1f6d52;
-  border-radius: 8px;
+  background: linear-gradient(145deg, #2b8968, #15513f);
+  border: 1px solid rgba(125, 231, 177, 0.34);
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  box-shadow: 0 5px 8px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  transform: translateZ(8px);
 }
 
 /* Slot grid cell */
 .slot-cell {
-  background: #15392f;
-  border: 1px solid #285b4a;
-  border-radius: 6px;
+  background: linear-gradient(145deg, #1b4c3d, #102d24);
+  border: 1px solid #34755b;
+  border-radius: 8px;
   color: #e2e2e2;
   font-size: 12px;
   font-weight: 600;
@@ -87,7 +147,19 @@ body {
   justify-content: center;
   aspect-ratio: 1;
   cursor: pointer;
-  transition: all 0.15s;
+  box-shadow: 0 3px 0 #0a211b, inset 0 1px 0 rgba(255,255,255,0.1);
+  transition: transform 150ms ease, box-shadow 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.slot-cell:hover {
+  transform: translateY(-2px) rotateX(5deg);
+  border-color: #b8d62a;
+  box-shadow: 0 5px 0 #0a211b, 0 0 12px rgba(228, 231, 43, 0.18);
+}
+
+.slot-cell:active {
+  transform: translateY(1px);
+  box-shadow: 0 1px 0 #0a211b;
 }
 
 .slot-cell.highlighted {
