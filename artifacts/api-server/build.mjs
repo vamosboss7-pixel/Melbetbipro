@@ -136,8 +136,14 @@ globalThis.__dirname = __bannerPath.dirname(globalThis.__filename);
   // Step 3: Copy frontend build output into server's dist/public
   const frontendSrc = path.resolve(workspaceRoot, "artifacts/bingo-app/dist/public");
   const frontendDest = path.resolve(distDir, "public");
+  const deploymentOutputDir = path.resolve(workspaceRoot, "public");
   console.log(`Copying frontend: ${frontendSrc} → ${frontendDest}`);
   await cp(frontendSrc, frontendDest, { recursive: true });
+
+  // Keep a root-level output directory for Vercel's configured deployment target.
+  await rm(deploymentOutputDir, { recursive: true, force: true });
+  console.log(`Copying frontend: ${frontendSrc} → ${deploymentOutputDir}`);
+  await cp(frontendSrc, deploymentOutputDir, { recursive: true });
 
   console.log("Build complete.");
 }
