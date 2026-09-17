@@ -124,55 +124,37 @@ export default function GamePage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 25%, #123b2e 0%, #071a16 70%)', overflow: 'hidden' }}>
 
       {/* Top Header */}
-      <div style={{ background: '#0a211b', borderBottom: '1.5px solid #2d6b57', boxShadow: '0 2px 10px rgba(45,156,113,0.22)', padding: '8px 10px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {/* Back / Exit button */}
-          <button
-            onClick={() => navigate('/slots')}
-            style={{
-              background: 'none', border: '1.5px solid #2b624e', borderRadius: 8,
-              color: '#aaa', cursor: 'pointer', padding: '5px 8px',
-              fontSize: 15, lineHeight: 1, flexShrink: 0,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-            title="ወደ ሎቢ ተመለስ"
-          >
-            ←
+      <header className="game-header">
+        <div className="game-header-main">
+          <button className="header-back-button" onClick={() => navigate('/slots')} title="ወደ ሎቢ ተመለስ" aria-label="ወደ ሎቢ ተመለስ">
+            <span aria-hidden="true">←</span>
           </button>
-          <div style={{
-            width: 34, height: 34, borderRadius: '50%',
-            background: 'linear-gradient(135deg, #2d6b57, #f4d52b)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            fontSize: 14, fontWeight: 800, color: '#e4e72b', flexShrink: 0,
-            border: '1.5px solid #d4a017'
-          }}>🎲</div>
-          <div style={{ flex: 1 }}>
-            <div className="font-condensed" style={{ fontSize: 12, fontWeight: 800, color: '#e4e72b', letterSpacing: '0.06em', lineHeight: 1.1 }}>
-              MELBIT BINGO
-            </div>
-            <div style={{ fontSize: 9, color: connected ? '#22c55e' : '#888' }}>
-              {connected ? '● LIVE' : '○ CONNECTING...'}
-              &nbsp;·&nbsp;
-              {gameState.phase === 'waiting'
-                ? 'ጨዋታ ይጀምራል...'
-                : gameState.phase === 'playing'
-                ? `${gameState.calledBalls.length}/75 BALLS`
-                : 'ROUND OVER'}
+          <div className="header-brand-mark" aria-hidden="true">MB</div>
+          <div className="header-brand-copy">
+            <div className="font-condensed header-brand-title">MELBIT BINGO</div>
+            <div className="header-status-row">
+              <span className={connected ? 'header-live-dot is-live' : 'header-live-dot'} aria-hidden="true" />
+              <span>{connected ? 'LIVE' : 'CONNECTING...'}</span>
+              <span className="header-divider" aria-hidden="true">·</span>
+              <span>
+                {gameState.phase === 'waiting'
+                  ? 'ጨዋታ ይጀምራል...'
+                  : gameState.phase === 'playing'
+                  ? `${gameState.calledBalls.length}/75 BALLS`
+                  : 'ROUND OVER'}
+              </span>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
+          <div className="header-stats">
             <StatChip label="CARDS" value={String(gameState.playersWithCards)} />
             <StatChip label="CALLED" value={`${gameState.calledBalls.length}/75`} />
             <StatChip label="PRIZE" value={`${gameState.netPrizePool}`} accent="#e4e72b" />
-            <button
-              onClick={() => setBgMusic(!bgMusicEnabled)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: bgMusicEnabled ? '#888' : '#e4e72b', fontSize: 16, padding: '2px 4px' }}
-            >
-              {bgMusicEnabled ? '🔊' : '🔇'}
-            </button>
           </div>
+          <button className={`header-sound-button ${bgMusicEnabled ? 'is-on' : ''}`} onClick={() => setBgMusic(!bgMusicEnabled)} aria-label={bgMusicEnabled ? 'ድምፅ አጥፋ' : 'ድምፅ አብራ'}>
+            <span aria-hidden="true">{bgMusicEnabled ? 'ON' : 'OFF'}</span>
+          </button>
         </div>
-      </div>
+      </header>
 
       {/* Drawn Ball Section */}
       <div style={{ flexShrink: 0, padding: '10px 12px 0' }}>
