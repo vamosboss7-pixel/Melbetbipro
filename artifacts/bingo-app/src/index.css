@@ -64,6 +64,139 @@ button:focus-visible, .slot-cell:focus-visible {
   min-height: 100vh;
 }
 
+/* Premium game header */
+.game-header {
+  flex-shrink: 0;
+  padding: 8px 10px 9px;
+  background: linear-gradient(105deg, rgba(7, 26, 22, 0.98), rgba(15, 58, 44, 0.98));
+  border-bottom: 1px solid rgba(121, 220, 168, 0.34);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.2), 0 1px 0 rgba(244, 237, 81, 0.16) inset;
+}
+
+.game-header-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.header-back-button,
+.header-sound-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid rgba(125, 231, 177, 0.3);
+  border-radius: 9px;
+  background: rgba(9, 38, 29, 0.82);
+  color: #c9e5d5;
+  cursor: pointer;
+  transition: border-color 150ms ease, background 150ms ease, transform 150ms ease;
+}
+
+.header-back-button {
+  width: 32px;
+  height: 32px;
+  font-size: 19px;
+  line-height: 1;
+}
+
+.header-back-button:hover,
+.header-sound-button:hover {
+  border-color: #e4e72b;
+  background: rgba(42, 112, 82, 0.72);
+  transform: translateY(-1px);
+}
+
+.header-brand-mark {
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  flex-shrink: 0;
+  border: 1px solid rgba(244, 237, 81, 0.7);
+  border-radius: 50%;
+  background: linear-gradient(145deg, #e4e72b, #b19b16 55%, #2d6b57 56%);
+  color: #10271f;
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: -0.06em;
+  box-shadow: 0 0 0 3px rgba(228, 231, 43, 0.08), 0 4px 10px rgba(0, 0, 0, 0.28);
+}
+
+.header-brand-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.header-brand-title {
+  overflow: hidden;
+  color: #f4ed51;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.header-status-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  overflow: hidden;
+  color: #96b6a5;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.header-live-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #7e8b84;
+  box-shadow: 0 0 0 3px rgba(126, 139, 132, 0.1);
+}
+
+.header-live-dot.is-live {
+  background: #4ade80;
+  box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.12), 0 0 8px rgba(74, 222, 128, 0.8);
+}
+
+.header-divider {
+  color: #4d806b;
+}
+
+.header-stats {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.header-sound-button {
+  min-width: 31px;
+  height: 32px;
+  padding: 0 6px;
+  color: #829b8e;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.header-sound-button.is-on {
+  border-color: rgba(228, 231, 43, 0.55);
+  color: #e4e72b;
+}
+
+@media (max-width: 420px) {
+  .header-stats .stat-chip:nth-child(2) {
+    display: none;
+  }
+}
+
 /* Layered surfaces give the compact game UI a tactile, premium depth. */
 .game-card {
   position: relative;
