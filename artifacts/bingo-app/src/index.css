@@ -102,6 +102,91 @@ button:focus-visible, .slot-cell:focus-visible {
   .landing-cta { left: 11%; right: 11%; bottom: 12%; padding-block: 12px; font-size: 18px; }
 }
 
+/* Premium card-selection theme inspired by the landing poster */
+.slot-selection-page {
+  background:
+    radial-gradient(circle at 50% -10%, rgba(214, 232, 38, 0.18), transparent 34%),
+    radial-gradient(circle at 10% 50%, rgba(0, 219, 151, 0.12), transparent 28%),
+    #020c09 !important;
+}
+
+.slot-selection-page::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgba(255, 241, 45, 0.03), transparent 38%, rgba(0, 255, 157, 0.04));
+}
+
+.slot-selection-header {
+  position: relative;
+  z-index: 1;
+  background: linear-gradient(105deg, rgba(2, 12, 9, 0.98), rgba(7, 55, 38, 0.98)) !important;
+  border-bottom-color: rgba(214, 232, 38, 0.46) !important;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.34), 0 1px 0 rgba(214, 232, 38, 0.14) inset;
+}
+
+.slot-selection-grid-area {
+  position: relative;
+  z-index: 1;
+  background: radial-gradient(circle at 50% 0%, rgba(23, 111, 69, 0.14), transparent 45%);
+}
+
+.slot-selection-grid-area > div:first-child {
+  padding: 9px 12px;
+  border: 1px solid rgba(214, 232, 38, 0.25);
+  border-radius: 12px;
+  background: linear-gradient(135deg, rgba(18, 73, 47, 0.9), rgba(5, 31, 22, 0.9));
+  box-shadow: 0 0 18px rgba(214, 232, 38, 0.08);
+}
+
+.slot-number-grid {
+  padding: 10px;
+  border: 1px solid rgba(0, 255, 157, 0.24);
+  border-radius: 16px;
+  background: rgba(3, 25, 18, 0.78);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.25), 0 0 24px rgba(0, 255, 157, 0.06) inset;
+}
+
+.slot-number-grid .slot-cell {
+  border: 1px solid rgba(89, 181, 126, 0.28) !important;
+  border-radius: 7px !important;
+  background: linear-gradient(145deg, rgba(20, 77, 51, 0.94), rgba(7, 39, 27, 0.94)) !important;
+  color: #d7eadc !important;
+  box-shadow: 0 2px 0 rgba(0, 0, 0, 0.24), 0 0 8px rgba(0, 255, 157, 0.04);
+  transition: transform 140ms ease, border-color 140ms ease, box-shadow 140ms ease;
+}
+
+.slot-number-grid .slot-cell:hover {
+  border-color: #d6e826 !important;
+  box-shadow: 0 0 12px rgba(214, 232, 38, 0.38);
+  transform: translateY(-1px);
+}
+
+.slot-selection-footer {
+  position: relative;
+  z-index: 2;
+  background: linear-gradient(180deg, rgba(3, 22, 16, 0.98), rgba(2, 12, 9, 1)) !important;
+  border-top-color: rgba(214, 232, 38, 0.34) !important;
+  box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.3);
+}
+
+.slot-selection-footer .cartela-placeholder {
+  border-color: rgba(0, 255, 157, 0.38) !important;
+  background: linear-gradient(145deg, rgba(16, 71, 47, 0.96), rgba(4, 30, 21, 0.96)) !important;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.2), 0 0 15px rgba(0, 255, 157, 0.07);
+}
+
+.slot-selection-footer button {
+  box-shadow: 0 4px 0 rgba(0, 0, 0, 0.28), 0 0 16px rgba(214, 232, 38, 0.14);
+  font-weight: 800 !important;
+}
+
+@media (max-width: 480px) {
+  .slot-number-grid { gap: 4px !important; padding: 8px; }
+  .slot-selection-footer { padding-inline: 10px !important; }
+}
+
 /* Game background radial glow */
 .game-bg {
   background:

@@ -174,7 +174,7 @@ export default function SlotSelectionPage() {
   const waitingForNextRound = gamePhase === 'playing' && selectedSlots.length === 0
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 30%, #123b2e 0%, #071a16 70%)', position: 'relative' }}>
+    <div className="slot-selection-page" style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 30%, #123b2e 0%, #071a16 70%)', position: 'relative' }}>
 
       {/* Insufficient Balance Modal */}
       {showNoBalance && (
@@ -251,7 +251,7 @@ export default function SlotSelectionPage() {
       )}
 
       {/* Header */}
-      <div style={{ background: '#102d24', borderBottom: '1px solid #2b624e', padding: '10px 14px' }}>
+      <div className="slot-selection-header" style={{ background: '#102d24', borderBottom: '1px solid #2b624e', padding: '10px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {/* Back button + User info */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -314,7 +314,7 @@ export default function SlotSelectionPage() {
       </div>
 
       {/* Scrollable grid only */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 8px' }}>
+      <div className="slot-selection-grid-area" style={{ flex: 1, overflowY: 'auto', padding: '12px 12px 8px' }}>
 
         {/* Grand Slots label */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
@@ -330,7 +330,7 @@ export default function SlotSelectionPage() {
         </div>
 
         {/* Number Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 5 }}>
+        <div className="slot-number-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: 5 }}>
           {numbers.map(n => {
             const isTaken = takenCards.has(n) && !selectedSlots.includes(n)
             const isSelected = selectedSlots.includes(n)
@@ -352,7 +352,7 @@ export default function SlotSelectionPage() {
       </div>
 
       {/* MY CARTELAS — fixed, never scrolls */}
-      <div style={{
+      <div className="slot-selection-footer" style={{
         flexShrink: 0,
         background: '#071a16',
         borderTop: '1px solid #214b3e',
