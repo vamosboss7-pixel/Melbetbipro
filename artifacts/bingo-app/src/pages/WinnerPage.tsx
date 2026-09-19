@@ -80,7 +80,7 @@ export default function WinnerPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'radial-gradient(ellipse at 50% 25%, #3a0f14 0%, #1a0608 55%, #100406 100%)',
+      background: 'radial-gradient(ellipse at 50% 25%, #06452a 0%, #031b14 55%, #02120d 100%)',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -129,7 +129,7 @@ export default function WinnerPage() {
 
         {/* ── Grand Pool ── */}
         <div style={{
-          background: 'linear-gradient(135deg, #2a0d10 0%, #1e0b0e 100%)',
+          background: 'linear-gradient(135deg, #06452a 0%, #05251a 100%)',
           border: '1.5px solid #7a2525',
           borderRadius: 14,
           padding: '12px 20px',
@@ -150,7 +150,7 @@ export default function WinnerPage() {
 
         {/* ── Winner Info ── */}
         <div style={{
-          background: 'linear-gradient(135deg, #2a0d10 0%, #1e0b0e 100%)',
+          background: 'linear-gradient(135deg, #06452a 0%, #05251a 100%)',
           border: '1.5px solid #7a2525',
           borderRadius: 14,
           padding: '12px 16px',
@@ -161,7 +161,7 @@ export default function WinnerPage() {
             {/* @ avatar */}
             <div style={{
               width: 44, height: 44, borderRadius: 10, flexShrink: 0,
-              background: 'linear-gradient(135deg, #c0392b, #8b1a1a)',
+              background: 'linear-gradient(135deg, #00ff8c, #00c96b)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               border: '1.5px solid #e85050',
               boxShadow: '0 0 10px rgba(192,57,43,0.5)',
@@ -193,7 +193,7 @@ export default function WinnerPage() {
         {/* ── Winning Cartela ── */}
         {card ? (
           <div style={{
-            background: 'linear-gradient(160deg, #2a0d10 0%, #1c090c 100%)',
+            background: 'linear-gradient(160deg, #06452a 0%, #1c090c 100%)',
             border: '1.5px solid #7a2525',
             borderRadius: 16,
             padding: '12px 12px 14px',
@@ -255,14 +255,14 @@ export default function WinnerPage() {
                     cellStyle = {
                       background: '#ffffff',
                       border: '2px solid #ffffff',
-                      color: '#1a0608',
+                      color: '#031b14',
                       boxShadow: '0 0 16px 4px rgba(255,255,255,0.9), 0 0 30px 8px rgba(255,255,255,0.4)',
                       fontWeight: 900,
                       fontSize: 16,
                     }
                   } else if (isFree) {
                     cellStyle = {
-                      background: 'linear-gradient(135deg, #3d1010, #2a0b0b)',
+                      background: 'linear-gradient(135deg, #08734a, #05251a)',
                       border: '1.5px solid #7a2525',
                       color: '#D4A017',
                       fontSize: 18,
@@ -322,7 +322,7 @@ export default function WinnerPage() {
               NEXT MATCH STARTS IN {countdown}S
             </span>
           </div>
-          <div style={{ height: 5, background: '#2a0e0e', borderRadius: 4, overflow: 'hidden' }}>
+          <div style={{ height: 5, background: '#06452a', borderRadius: 4, overflow: 'hidden' }}>
             <div className="progress-fill" style={{ width: `${(countdown / TOTAL_COUNTDOWN) * 100}%` }} />
           </div>
         </div>

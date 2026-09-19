@@ -22,7 +22,7 @@ function AppShell() {
     return <AdminPage />
   }
 
-  const showNav = !HIDDEN_NAV_ROUTES.includes(location)
+  const showNav = !HIDDEN_NAV_ROUTES.includes(location) && location !== '/'
 
   return (
     <div

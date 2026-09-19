@@ -11,7 +11,7 @@ export default function ProfilePage() {
     <div
       style={{
         minHeight: '100vh',
-        background: 'radial-gradient(ellipse at 50% 35%, #2e0d10 0%, #180608 70%)',
+        background: 'radial-gradient(ellipse at 50% 35%, #06452a 0%, #031b14 70%)',
         display: 'flex',
         flexDirection: 'column',
         padding: '0 16px 100px',
@@ -25,7 +25,7 @@ export default function ProfilePage() {
             width: 80,
             height: 80,
             borderRadius: '50%',
-            background: 'linear-gradient(135deg, #c0392b, #E91E8C)',
+            background: 'linear-gradient(135deg, #00ff8c, #b7ff00)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
