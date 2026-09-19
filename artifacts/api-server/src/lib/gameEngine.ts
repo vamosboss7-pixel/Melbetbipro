@@ -3,10 +3,9 @@ import type { Server, Socket, Namespace } from "socket.io";
 import { logger } from "./logger";
 import { db } from "./db";
 import { CARTELAS } from "../data/cartelas";
-import { playersTable, transactionsTable, gameRoundsTable, jackpotBatchesTable, jackpotPointsTable, jackpotRoundLogTable } from "@workspace/db/schema";
-import { eq, sql, and, desc } from "drizzle-orm";
+import { playersTable, transactionsTable, gameRoundsTable } from "@workspace/db/schema";
+import { eq, sql } from "drizzle-orm";
 import { appSettings, type RoomId } from "./settings";
-import { bot } from "./bot";
 
 
 export type Phase = "waiting" | "playing" | "finished";
@@ -36,7 +35,6 @@ export interface BroadcastState {
   netPrizePool: number;
   calledBalls: number[];
   currentBall: number | null;
-  jackpotPool: number;
 }
 
 export interface RoomConfig {
@@ -112,7 +110,6 @@ export class GameEngine {
   // Aggregated per-player deduction totals for the current round (used for win logic and maintenance refunds).
   private roundDeductions: Map<number, { main: number; bonus: number; deposit: number }>;
 
-  private jackpotPool = 0;
   // Locked at game-start; stays fixed for the whole playing/finished phase
   // so the "PLAYERS" chip never jumps as sockets connect/disconnect mid-game.
   private lockedPlayerCount = 0;
@@ -184,14 +181,6 @@ export class GameEngine {
   private cfgMinPlayersToStart(): number {
     if (this.roomCfg.roomId) return appSettings.getRoomNum(this.roomCfg.roomId as RoomId, "minPlayersToStart");
     return 2;
-  }
-
-  private cfgJackpotEnabled(): boolean {
-    return appSettings.getBool("jackpotEnabled");
-  }
-
-  private cfgJackpotFinalGame(): number {
-    return Math.max(1, Math.floor(appSettings.getNum("jackpotFinalGame")));
   }
 
   getNamespace(): Server | Namespace {
@@ -390,8 +379,8 @@ export class GameEngine {
     const stakePerCardW = this.cfgStakePerCard();
     const commissionPctW = this.cfgCommissionPercent();
     const totalPoolW = [...this.roundParticipants.values()].reduce((sum, p) => sum + p.cardIds.length * stakePerCardW, 0);
-    const jackpotCutW = Math.round(totalPoolW * commissionPctW / 100);
-    const netPoolW = totalPoolW - jackpotCutW;
+    const commissionCutW = Math.round(totalPoolW * commissionPctW / 100);
+    const netPoolW = totalPoolW - commissionCutW;
     const prizePerWinner = this.winners.length > 0 ? Math.floor(netPoolW / this.winners.length) : 0;
 
     this.ns.emit("winner_declared", {
@@ -416,8 +405,8 @@ export class GameEngine {
     const commissionPct = this.cfgCommissionPercent();
     const totalPrizePool = [...this.roundParticipants.values()]
       .reduce((sum, p) => sum + p.cardIds.length * stakePerCard, 0);
-    const jackpotContribution = Math.round(totalPrizePool * commissionPct / 100);
-    const netPrizePool = totalPrizePool - jackpotContribution;
+    const commissionAmount = Math.round(totalPrizePool * commissionPct / 100);
+    const netPrizePool = totalPrizePool - commissionAmount;
     const prizePerWinner = winnerTelegramIds.size > 0
       ? Math.floor(netPrizePool / winnerTelegramIds.size)
       : 0;
@@ -483,377 +472,8 @@ export class GameEngine {
       }
     }
 
-    // ── Jackpot: award points + fund pool + leaderboard/distribution ──────────
-    // resetRound() runs in a finally block so a jackpot DB failure never leaves
-    // the engine stuck in "finished" phase with no way to start a new game.
-    try {
-      if (this.cfgJackpotEnabled()) {
-        await this.handleJackpotLogic(roundId, this.roundParticipants, winnerTelegramIds, jackpotContribution, this.roundDeductions);
-      } else {
-        logger.info({ roundId, jackpotContribution }, "Jackpot disabled — skipping jackpot logic, commission retained as app revenue");
-      }
-    } catch (err) {
-      logger.error({ err, roundId }, "Jackpot logic failed — round will still reset");
-    } finally {
-      this.resetRound();
-    }
-  }
-
-  // ── Jackpot system ────────────────────────────────────────────────────────────
-
-  /**
-   * Called at the end of every game. Awards points, funds the jackpot pool,
-   * posts the leaderboard, and distributes + resets on the admin-configured
-   * final game.
-   *
-   * Idempotency: the entire batch-increment + point-award block runs inside a
-   * single DB transaction. The first step is inserting `roundId` into
-   * `jackpot_round_log` (PRIMARY KEY). If the server crashes and the function
-   * is called again for the same round, that INSERT will throw a unique-key
-   * violation and the transaction rolls back — no double-counting.
-   */
-  private async handleJackpotLogic(
-    roundId: string,
-    roundParticipants: Map<number, { firstName: string; cardIds: number[] }>,
-    winnerTelegramIds: Set<number>,
-    jackpotContribution: number,
-    roundDeductions: Map<number, { main: number; bonus: number; deposit: number }>,
-  ): Promise<void> {
-    let batchId: number;
-    let batchNumber: number;
-    let gameCount: number;
-    let currentPool: number;
-
-    try {
-      // Run everything atomically. The jackpot_round_log INSERT acts as the
-      // idempotency gate: a duplicate roundId throws immediately and rolls back.
-      const result = await db.transaction(async (tx) => {
-        // ── Idempotency gate ─────────────────────────────────────────────────
-        await tx.insert(jackpotRoundLogTable).values({ roundId, batchId: 0, gameCount: 0 });
-        // (batchId / gameCount placeholders — updated below once we know them)
-
-        // ── 1. Get or create the active batch ────────────────────────────────
-        const existingRows = await tx
-          .select()
-          .from(jackpotBatchesTable)
-          .where(eq(jackpotBatchesTable.isActive, true))
-          .orderBy(desc(jackpotBatchesTable.id))
-          .limit(1);
-
-        let txBatchId: number;
-        let txBatchNumber: number;
-        let txGameCount: number;
-        let txCurrentPool: number;
-
-        if (!existingRows.length) {
-          const [newBatch] = await tx
-            .insert(jackpotBatchesTable)
-            .values({ batchNumber: 1, gameCount: 1, jackpotPool: `${jackpotContribution}`, isActive: true })
-            .returning();
-          txBatchId = newBatch!.id;
-          txBatchNumber = 1;
-          txGameCount = 1;
-          txCurrentPool = jackpotContribution;
-        } else {
-          const batch = existingRows[0]!;
-          const newGameCount = batch.gameCount + 1;
-          const newPool = Number(batch.jackpotPool) + jackpotContribution;
-          const [updated] = await tx
-            .update(jackpotBatchesTable)
-            .set({ gameCount: newGameCount, jackpotPool: `${newPool}` })
-            .where(eq(jackpotBatchesTable.id, batch.id))
-            .returning();
-          txBatchId = batch.id;
-          txBatchNumber = batch.batchNumber;
-          txGameCount = newGameCount;
-          txCurrentPool = Number(updated!.jackpotPool);
-        }
-
-        // Back-fill the real batchId / gameCount into the log row
-        await tx
-          .update(jackpotRoundLogTable)
-          .set({ batchId: txBatchId, gameCount: txGameCount })
-          .where(eq(jackpotRoundLogTable.roundId, roundId));
-
-        // ── 2. Award points (atomic per-player upsert) ───────────────────────
-        // Formula (Option A + Streak):
-        //   participation = cards × 4
-        //   win bonus     = cards × 3  (if winner)
-        //   streak bonus  = min(consecutive games in this batch, 8)
-        //
-        // Eligibility rules (any one disqualifies):
-        //   a) Used ANY bonus balance
-        //   b) Did NOT use deposit balance (depositBalance deduction = 0)
-        //
-        // INSERT … ON CONFLICT keeps per-player points safe even if the loop is
-        // partially replayed, because the transaction as a whole will roll back
-        // on a duplicate roundId before this code is reached a second time.
-        for (const [telegramId, participant] of roundParticipants) {
-          const deduction = roundDeductions.get(telegramId);
-
-           // Rule a: bonus balance used → ineligible
-          if (deduction && deduction.bonus > 0) {
-            logger.info({ telegramId, bonusUsed: deduction.bonus }, "Jackpot: skipping — bonus balance used");
-            continue;
-          }
-
-          // Rule b: no deposit balance used → ineligible
-          if (!deduction || deduction.deposit === 0) {
-            logger.info({ telegramId }, "Jackpot: skipping — no deposit balance used in this round");
-            continue;
-          }
-
-          const isWinner = winnerTelegramIds.has(telegramId);
-          const cards = participant.cardIds.length;
-           const participationPts = cards * appSettings.getNum("jackpotParticipationPoints");
-           const winBonus = isWinner ? cards * appSettings.getNum("jackpotWinBonusPoints") : 0;
-          const firstGamePoints = participationPts + winBonus + 1; // streak=1 on first game
-
-          await tx.execute(sql`
-            INSERT INTO jackpot_points
-              (batch_id, batch_number, telegram_id, first_name, points, streak_count, last_game_count, created_at, updated_at)
-            VALUES
-              (${txBatchId}, ${txBatchNumber}, ${telegramId}, ${participant.firstName},
-               ${firstGamePoints}, 1, ${txGameCount}, NOW(), NOW())
-            ON CONFLICT (batch_id, telegram_id) DO UPDATE SET
-               streak_count    = CASE
-                                  WHEN jackpot_points.last_game_count = ${txGameCount} - 1
-                                     THEN LEAST(jackpot_points.streak_count + 1, ${appSettings.getNum("jackpotStreakMax")})
-                                  ELSE 1
-                                END,
-              points          = jackpot_points.points
-                                  + ${participationPts}
-                                  + ${winBonus}
-                                  + CASE
-                                       WHEN jackpot_points.last_game_count = ${txGameCount} - 1
-                                         THEN LEAST(jackpot_points.streak_count + 1, ${appSettings.getNum("jackpotStreakMax")})
-                                      ELSE 1
-                                    END,
-              last_game_count = ${txGameCount},
-              first_name      = ${participant.firstName},
-              updated_at      = NOW()
-          `);
-        }
-
-        return { txBatchId, txBatchNumber, txGameCount, txCurrentPool };
-      });
-
-      batchId = result.txBatchId;
-      batchNumber = result.txBatchNumber;
-      gameCount = result.txGameCount;
-      currentPool = result.txCurrentPool;
-      // Keep in-memory cache up-to-date so broadcastState() sends live jackpot.
-      this.jackpotPool = currentPool;
-
-    } catch (err: unknown) {
-      // A duplicate roundId means this round was already processed — safe to skip.
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes("jackpot_round_log") && msg.includes("duplicate")) {
-        logger.warn({ roundId }, "handleJackpotLogic: round already processed, skipping");
-        return;
-      }
-      logger.error({ err, roundId }, "handleJackpotLogic error");
-      throw err;
-    }
-
-    // ── 3. Post leaderboard and distribute on the configured final game ────────
-    // These run outside the transaction: they're external side-effects (Telegram
-    // messages, balance credits) that must not block the DB commit.
-
-    // Collect round winner names for the leaderboard post
-    const roundWinnerNames = [...winnerTelegramIds]
-      .map(tid => roundParticipants.get(tid)?.firstName)
-      .filter((n): n is string => !!n);
-
-    try {
-      if (gameCount >= this.cfgJackpotFinalGame()) {
-        await this.distributeJackpot(batchId, batchNumber, currentPool);
-      } else {
-        await this.postLeaderboardToChannel(batchId, batchNumber, gameCount, currentPool, roundWinnerNames);
-      }
-    } catch (err) {
-      logger.error({ err, roundId, gameCount }, "handleJackpotLogic: post-commit step failed");
-    }
-  }
-
-  /** Post a top-10 leaderboard update to the dedicated jackpot channel */
-  private async postLeaderboardToChannel(
-    batchId: number,
-    batchNumber: number,
-    gameCount: number,
-    currentPool: number,
-    roundWinnerNames: string[] = [],
-  ): Promise<void> {
-    const channelId = appSettings.get("jackpotChannelId");
-
-    try {
-      const rows = await db
-        .select()
-        .from(jackpotPointsTable)
-        .where(eq(jackpotPointsTable.batchId, batchId))
-        .orderBy(desc(jackpotPointsTable.points))
-        .limit(10);
-
-      if (!rows.length) return;
-
-      const medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"];
-      const lines = rows.map((r, i) => `${medals[i] ?? "•"} ${r.firstName} — ${r.points} ነጥብ`);
-
-      const winnerLine = roundWinnerNames.length > 0
-        ? `🎯 *የዙሩ አሸናፊ:* ${roundWinnerNames.join(", ")}\n`
-        : "";
-
-      const nextLine = `📊 ጠቅላላ ዙሮች: ${gameCount}`;
-      const title = `🏆 *ጃክፖት ሊደርቦርድ — ዙር ${gameCount}*`;
-
-      const message =
-        `${title}\n` +
-        `━━━━━━━━━━━━━━━━━━━━━━\n` +
-        winnerLine +
-        lines.join("\n") +
-        `\n━━━━━━━━━━━━━━━━━━━━━━\n` +
-        `💰 ጃክፖት ቦርሳ: *${currentPool.toFixed(2)} ETB*\n` +
-        nextLine;
-
-      await bot.api.sendMessage(channelId, message, { parse_mode: "Markdown" });
-      logger.info({ gameCount, batchNumber }, "Posted jackpot leaderboard to jackpot channel");
-    } catch (err) {
-      logger.error({ err, channelId }, "Failed to post leaderboard to jackpot channel");
-    }
-  }
-
-  /** Distribute jackpot pool to top 3, reset batch, announce in channel */
-  private async distributeJackpot(
-    batchId: number,
-    batchNumber: number,
-    currentPool: number,
-  ): Promise<void> {
-    try {
-      // Fetch top 3 by points
-      const top3 = await db
-        .select()
-        .from(jackpotPointsTable)
-        .where(eq(jackpotPointsTable.batchId, batchId))
-        .orderBy(desc(jackpotPointsTable.points))
-        .limit(3);
-
-      const splits = [
-        appSettings.getNum("jackpotFirstPrizePercent") / 100,
-        appSettings.getNum("jackpotSecondPrizePercent") / 100,
-        appSettings.getNum("jackpotThirdPrizePercent") / 100,
-      ];
-      const prizes: Array<{ telegramId: number; firstName: string; points: number; prize: number }> = [];
-
-      for (let i = 0; i < top3.length; i++) {
-        const player = top3[i]!;
-        const prize = Math.floor(currentPool * splits[i]!);
-        prizes.push({ telegramId: player.telegramId, firstName: player.firstName, points: player.points, prize });
-
-        if (prize > 0) {
-          try {
-            // Jackpot prizes go to bonusBalance (non-withdrawable)
-            await db
-              .update(playersTable)
-              .set({ bonusBalance: sql`${playersTable.bonusBalance} + ${prize}` })
-              .where(eq(playersTable.telegramId, player.telegramId));
-
-            await db.insert(transactionsTable).values({
-              telegramId: player.telegramId,
-              type: "win",
-              amount: `${prize}`,
-              status: "approved",
-              note: `Jackpot batch #${batchNumber} — ${i + 1}${i === 0 ? "st" : i === 1 ? "nd" : "rd"} place`,
-            });
-          } catch (err) {
-            logger.error({ err, telegramId: player.telegramId }, "Failed to credit jackpot prize");
-          }
-        }
-      }
-
-      // Mark batch as completed
-      await db
-        .update(jackpotBatchesTable)
-        .set({ isActive: false, completedAt: new Date() })
-        .where(eq(jackpotBatchesTable.id, batchId));
-
-      // Create the next batch
-      await db.insert(jackpotBatchesTable).values({
-        batchNumber: batchNumber + 1,
-        gameCount: 0,
-        jackpotPool: "0.00",
-        isActive: true,
-      });
-
-      // New batch starts at 0
-      this.jackpotPool = 0;
-      logger.info({ batchNumber, currentPool, winners: prizes.length }, "Jackpot distributed, new batch started");
-
-      const winnerMedals = ["🥇", "🥈", "🥉"];
-      const placeNames = ["1ኛ", "2ኛ", "3ኛ"];
-      const winnerIds = new Set(prizes.map((p) => p.telegramId));
-
-      // ── 1. Personal DM to each winner ────────────────────────────────────────
-      for (let i = 0; i < prizes.length; i++) {
-        const p = prizes[i]!;
-        if (p.prize <= 0) continue;
-        const dm =
-          `🎉 እንኳን ደስ አለዎት, *${p.firstName}*!\n\n` +
-          `${winnerMedals[i]} ከጃክፖት ዙር #${batchNumber} *${placeNames[i]}* ቦታ አሸነፉ!\n\n` +
-          `💰 ሽልማትዎ: *${p.prize.toFixed(2)} ETB* ወደ ሂሳብዎ ተጨምሯል።\n` +
-          `📊 ነጥቦችዎ: ${p.points} ነጥብ\n\n` +
-          `⚡ ቀጣዩ ጃክፖት ዙር ተጀምሯል! ጨዋታ ቀጥሉ!`;
-        try {
-          await bot.api.sendMessage(p.telegramId, dm, { parse_mode: "Markdown" });
-        } catch (err) {
-          logger.error({ err, telegramId: p.telegramId }, "Failed to send jackpot DM to winner");
-        }
-      }
-
-      // ── 2. General announcement to all players ────────────────────────────────
-      const winLines = prizes
-        .filter((p) => p.prize > 0)
-        .map((p, i) => {
-          const prizeStr = Number.isInteger(p.prize) ? `${p.prize}` : p.prize.toFixed(2);
-          return `${winnerMedals[i]} ${p.firstName} — ${p.points} pts → ${prizeStr} ETB`;
-        });
-
-      const poolStr = Number.isInteger(currentPool) ? `${currentPool}` : currentPool.toFixed(2);
-
-      const generalMsg =
-        `🔥 ጃክፖቱ ተበላ!\n\n` +
-        `በዙር #${batchNumber} ${poolStr} ብር ለአንበሶቹ ተጫዋቾቻችን ተከፋፍሏል !\n\n` +
-        `👇 ዕድለኞቹ:\n` +
-        winLines.join("\n") +
-        `\n\n⚡ ቀጣዩ ዙር አሁን ተጀምሯል! ቀድመው በመግባት የማሸነፍ እድልዎን ከፍተኛ ያድርጉ! 💸\n\n` +
-        `በየ10 ዙር ዳጎስ ያለ ሽልማት 😎\n\n` +
-        `መልካም እድል 🥂`;
-
-      let allPlayers: { telegramId: number }[] = [];
-      try {
-        allPlayers = await db.select({ telegramId: playersTable.telegramId }).from(playersTable);
-      } catch (err) {
-        logger.error({ err }, "Failed to fetch players for jackpot broadcast");
-      }
-
-      for (const player of allPlayers) {
-        try {
-          await bot.api.sendMessage(player.telegramId, generalMsg);
-        } catch {
-          // Silently skip — player may have blocked the bot
-        }
-      }
-
-      // ── 3. Post final result to dedicated jackpot channel ─────────────────────
-      try {
-        const channelId = appSettings.get("jackpotChannelId");
-        await bot.api.sendMessage(channelId, generalMsg);
-        logger.info({ batchNumber, channelId }, "Posted jackpot result to jackpot channel");
-      } catch (err) {
-        logger.error({ err }, "Failed to post jackpot result to configured channel");
-      }
-    } catch (err) {
-      logger.error({ err }, "distributeJackpot error");
-    }
+    // Commission is retained as app revenue. Start the next round.
+    this.resetRound();
   }
 
   private resetRound() {
@@ -887,39 +507,6 @@ export class GameEngine {
     if (this.tieWindowTimer) { clearTimeout(this.tieWindowTimer); this.tieWindowTimer = null; }
   }
 
-  async initJackpotPool(): Promise<void> {
-    if (!this.cfgJackpotEnabled()) {
-      this.jackpotPool = 0;
-      logger.info("Jackpot disabled — pool initialised to 0");
-      return;
-    }
-    const maxAttempts = 10;
-    const delayMs = 2000;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        const rows = await db
-          .select({ jackpotPool: jackpotBatchesTable.jackpotPool })
-          .from(jackpotBatchesTable)
-          .where(eq(jackpotBatchesTable.isActive, true))
-          .orderBy(desc(jackpotBatchesTable.id))
-          .limit(1);
-        this.jackpotPool = rows[0] ? Number(rows[0].jackpotPool) : 0;
-        logger.info({ jackpotPool: this.jackpotPool }, "Jackpot pool initialised");
-        return;
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        const tableNotReady = msg.includes("does not exist") || msg.includes("relation");
-        if (tableNotReady && attempt < maxAttempts) {
-          logger.warn({ attempt, maxAttempts }, "initJackpotPool: tables not ready yet, retrying…");
-          await new Promise(resolve => setTimeout(resolve, delayMs));
-        } else {
-          logger.error({ err, attempt }, "Failed to init jackpot pool");
-          throw err;
-        }
-      }
-    }
-  }
-
   private broadcastState() {
     const stakePerCard = this.cfgStakePerCard();
     const commissionPct = this.cfgCommissionPercent();
@@ -950,7 +537,6 @@ export class GameEngine {
       netPrizePool,
       calledBalls: [...this.calledBalls],
       currentBall: this.currentBall,
-      jackpotPool: this.cfgJackpotEnabled() ? this.jackpotPool : 0,
     };
     this.ns.emit("game_state", state);
   }
@@ -1036,7 +622,6 @@ export class GameEngine {
       netPrizePool: prizePool - commissionAmount,
       calledBalls: [...this.calledBalls],
       currentBall: this.currentBall,
-      jackpotPool: this.cfgJackpotEnabled() ? this.jackpotPool : 0,
     });
 
     if (cardIds.length > 0) {
@@ -1309,7 +894,6 @@ export class GameEngine {
       netPrizePool: this.computeNetPrizePool(),
       calledBalls: [...this.calledBalls],
       currentBall: this.currentBall,
-      jackpotPool: this.jackpotPool,
     };
   }
 
