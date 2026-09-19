@@ -11,11 +11,26 @@ export default function LobbyPage() {
   useGameReconnect(player)
 
   return (
-    <main style={{ position: 'relative', width: '100%', minHeight: '100vh', background: '#031b14' }}>
+    <main
+      style={{
+        position: 'relative',
+        width: '100%',
+        height: '100dvh',
+        minHeight: '100vh',
+        overflow: 'hidden',
+        background: '#031b14',
+      }}
+    >
       <img
         src={LANDING_IMAGE}
         alt="Melbit Bingo landing page with game features, winning rules, and an Enter Game call to action"
-        style={{ display: 'block', width: '100%', height: 'auto' }}
+        style={{
+          display: 'block',
+          width: '100%',
+          height: '100%',
+          objectFit: 'cover',
+          objectPosition: 'center top',
+        }}
       />
       <button
         type="button"
