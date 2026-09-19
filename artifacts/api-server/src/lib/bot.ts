@@ -47,15 +47,11 @@ const _botDomain = (
 export const USE_POLLING = !_botDomain || _botDomain.includes("riker.replit.dev") || _botDomain.includes(".replit.dev");
 
 /**
- * Resolve the Telegram Mini App URL from the MINI_APP_URL environment variable.
+ * Resolve the Telegram Mini App URL from MINI_APP_URL or the public app domain.
  * The value may be either a full HTTPS URL or a hostname.
- *
- * Do not use the webhook domain as a fallback here: webhook and Mini App URLs
- * are separate settings, and a webhook-only domain can make Telegram show a
- * button that cannot open the app.
  */
 export function getMiniAppUrl(): string | null {
-  const configuredUrl = process.env["MINI_APP_URL"]?.trim();
+  const configuredUrl = process.env["MINI_APP_URL"]?.trim() || (USE_POLLING ? "" : _botDomain);
   if (!configuredUrl) return null;
 
   const candidate = /^https?:\/\//i.test(configuredUrl)
