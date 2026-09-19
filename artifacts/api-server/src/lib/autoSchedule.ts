@@ -40,7 +40,7 @@ async function fireBroadcast(id: number, message: string, imageData: string | nu
 
 // ── Daily Play Bonus broadcast ────────────────────────────────────────────────
 // Sends the 10-ETB claim message+image to all players once per UTC day.
-// The image lives at <workspace_root>/attached_assets/melbet_bingo_promo.png
+// The image lives under <workspace_root>/attached_assets.
 const DAILY_BONUS_IMAGE_PATH = path.join(
   process.cwd(),
   "attached_assets",
@@ -50,9 +50,9 @@ const DAILY_BONUS_IMAGE_PATH = path.join(
 const DAILY_BONUS_MESSAGE =
   `🔥🎉 <b>ዛሬ  የ1 ጨዋታ ቦነስ ለእርሶ !</b> 🎉🔥\n\n` +
   `🎁 <b>አንድ ጨዋታ 10 ብር ቦነስ</b> ይውሰዱና እድልዎን ይሞክሩ!\n\n` +
-  `🏆 <b>MelBet BINGO</b> በአጭር ጊዜ ውስጥ የብዙዎችን ቀልብ እየገዛ  ያለ ተወዳጅ የቢንጎ መድረክ ሆኗል። አሁኑኑ ይቀላቀሉ!\n\n` +
+  `🏆 <b>KEFTA BINGO</b> በአጭር ጊዜ ውስጥ የብዙዎችን ቀልብ እየገዛ  ያለ ተወዳጅ የቢንጎ መድረክ ሆኗል። አሁኑኑ ይቀላቀሉ!\n\n` +
   `✨ <b>የዛሬ ቦነሶች</b>\n` +
-  `🎁 ለአዲስ ተጫዋቾች – <b>20 ብር በቀጥታ ቦነስ</b>\n` +
+  `🎁 ለአዲስ ተጫዋቾች – <b>30 ብር በቀጥታ ቦነስ</b>\n` +
   `💸 ጓደኛ ሲጋብዙ – <b>ተጨማሪ ቦነስ </b>\n` +
   `👥 በየቀኑ አዳዲስ ተጫዋቾች እየተቀላቀሉ ነው\n\n` +
   `መልካም እድል 😎\n\n` +
