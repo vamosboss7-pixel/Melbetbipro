@@ -16,7 +16,6 @@ interface GameState {
 export default function SlotSelectionPage() {
   const [, navigate] = useLocation()
   const [selectedSlots, setSelectedSlots] = useState<number[]>([])
-  const [jackpotPool, setJackpotPool] = useState<string>('0.00')
   const [stakePerCard, setStakePerCard] = useState<number>(0)
   const [showNoBalance, setShowNoBalance] = useState(false)
   const { player, refresh } = usePlayer()
@@ -57,12 +56,11 @@ export default function SlotSelectionPage() {
 
     socket.on('connect', emitJoin)
 
-    socket.on('game_state', (state: GameState & { jackpotPool?: number }) => {
+    socket.on('game_state', (state: GameState) => {
       setServerCountdown(state.countdown)
       setGamePhase(state.phase)
       setTotalCards(state.playersWithCards ?? 0)
       setNetPrizePool(state.netPrizePool ?? 0)
-      if (state.jackpotPool != null) setJackpotPool(Number(state.jackpotPool).toFixed(2))
     })
 
     socket.on('balance_update', (data: { depositBalance?: string; mainBalance: string; bonusBalance: string }) => {
@@ -104,13 +102,8 @@ export default function SlotSelectionPage() {
     }
   }, [gamePhase, navigate])
 
-  // ── Fetch jackpot + stake ─────────────────────────────────────────────────
+  // ── Fetch stake ───────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch('/api/jackpot/status')
-      .then(r => r.json())
-      .then((data: { pool: number }) => setJackpotPool(Number(data.pool ?? 0).toFixed(2)))
-      .catch(() => {})
-
     fetch('/api/game/rooms')
       .then(r => r.json())
       .then((data: { room10?: { stakePerCard: number } | null }) => {
@@ -358,22 +351,12 @@ export default function SlotSelectionPage() {
         borderTop: '1px solid #3a1212',
         padding: '10px 12px 0',
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ fontSize: 15 }}>🎴</span>
             <span className="font-condensed" style={{ fontSize: 14, fontWeight: 700, color: '#D4A017', letterSpacing: '0.06em' }}>
               MY CARTELAS ({selectedSlots.length}/2)
             </span>
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
-            <span style={{ fontSize: 9, fontWeight: 700, color: '#D4A017', letterSpacing: '0.08em' }}>🏆 JACKPOT (ETB)</span>
-            <div style={{
-              background: '#05251a', border: '1px solid #08734a',
-              borderRadius: 8, padding: '3px 10px',
-              fontSize: 11, fontWeight: 700, color: '#fff'
-            }}>
-              {jackpotPool} ETB
-            </div>
           </div>
         </div>
 
