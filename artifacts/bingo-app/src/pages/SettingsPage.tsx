@@ -17,7 +17,7 @@ function Row({ icon, label, sublabel, right }: RowProps) {
         alignItems: 'center',
         justifyContent: 'space-between',
         padding: '14px 16px',
-        borderBottom: '1px solid #2a0a0a',
+        borderBottom: '1px solid #05251a',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
@@ -42,7 +42,7 @@ function Toggle({ on, onChange }: { on: boolean; onChange: (v: boolean) => void 
         width: 44,
         height: 24,
         borderRadius: 12,
-        background: on ? '#E91E8C' : '#333',
+        background: on ? '#b7ff00' : '#333',
         position: 'relative',
         cursor: 'pointer',
         transition: 'background 0.2s',
@@ -94,7 +94,7 @@ function BalanceOption({
         flex: 1,
         padding: '12px 10px',
         borderRadius: 10,
-        border: `2px solid ${selected ? '#E91E8C' : '#2a0a0a'}`,
+        border: `2px solid ${selected ? '#b7ff00' : '#05251a'}`,
         background: selected ? 'rgba(233,30,140,0.10)' : 'rgba(255,255,255,0.03)',
         cursor: saving ? 'default' : 'pointer',
         transition: 'border-color 0.2s, background 0.2s',
@@ -129,8 +129,8 @@ function BalanceOption({
           width: 16,
           height: 16,
           borderRadius: '50%',
-          border: `2px solid ${selected ? '#E91E8C' : '#555'}`,
-          background: selected ? '#E91E8C' : 'transparent',
+          border: `2px solid ${selected ? '#b7ff00' : '#555'}`,
+          background: selected ? '#b7ff00' : 'transparent',
           marginTop: 2,
           transition: 'background 0.2s, border-color 0.2s',
         }}
@@ -185,7 +185,7 @@ export default function SettingsPage() {
     <div
       style={{
         minHeight: '100vh',
-        background: 'radial-gradient(ellipse at 50% 35%, #2e0d10 0%, #180608 70%)',
+        background: 'radial-gradient(ellipse at 50% 35%, #06452a 0%, #031b14 70%)',
         display: 'flex',
         flexDirection: 'column',
         padding: '0 0 100px',

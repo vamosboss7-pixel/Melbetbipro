@@ -47,7 +47,7 @@ body {
   background: #063d29;
   border: 1.5px solid #00ff8c;
   border-radius: 12px;
-  box-shadow: 0 0 10px rgba(192, 57, 43, 0.45), inset 0 0 6px rgba(192, 57, 43, 0.1);
+  box-shadow: 0 0 10px rgba(0, 255, 140, 0.35), inset 0 0 6px rgba(0, 255, 140, 0.12);
 }
 
 /* Gold gradient button */
@@ -99,7 +99,7 @@ body {
 /* Ball matrix cell */
 .ball-cell {
   background: #073b29;
-  border: 1px solid #3a1212;
+  border: 1px solid #08734a;
   border-radius: 4px;
   color: #ccc;
   font-size: 11px;
@@ -144,8 +144,8 @@ body {
 }
 
 .bingo-cell.free {
-  background: #3d1010;
-  border-color: #6b2020;
+  background: #06452a;
+  border-color: #00ff8c;
   color: #d4a017;
 }
 
@@ -172,7 +172,7 @@ body {
 
 /* Stat chip */
 .stat-chip {
-  background: #1e0909;
+  background: #05251a;
   border: 1px solid #00c878;
   border-radius: 8px;
   padding: 4px 10px;

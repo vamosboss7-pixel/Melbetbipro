@@ -124,7 +124,7 @@ export default function GamePage() {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 25%, #06452a 0%, #031b14 70%)', overflow: 'hidden' }}>
 
       {/* Top Header */}
-      <div style={{ background: '#1a0708', borderBottom: '1.5px solid #00ff8c', boxShadow: '0 2px 10px rgba(192,57,43,0.4)', padding: '8px 10px', flexShrink: 0 }}>
+      <div style={{ background: '#05251a', borderBottom: '1.5px solid #00ff8c', boxShadow: '0 2px 10px rgba(0,255,140,0.35)', padding: '8px 10px', flexShrink: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {/* Back / Exit button */}
           <button
@@ -166,7 +166,7 @@ export default function GamePage() {
             <StatChip label="PRIZE" value={`${gameState.netPrizePool}`} accent="#D4A017" />
             <button
               onClick={() => setBgMusic(!bgMusicEnabled)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: bgMusicEnabled ? '#888' : '#e53e3e', fontSize: 16, padding: '2px 4px' }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: bgMusicEnabled ? '#888' : '#39ff88', fontSize: 16, padding: '2px 4px' }}
             >
               {bgMusicEnabled ? '🔊' : '🔇'}
             </button>
@@ -271,7 +271,7 @@ export default function GamePage() {
                       border: '1.5px solid #00ff8c',
                       borderRadius: 10,
                       padding: '5px 7px 4px',
-                      boxShadow: '0 0 8px rgba(192,57,43,0.35), inset 0 0 4px rgba(192,57,43,0.08)',
+                      boxShadow: '0 0 8px rgba(0,255,140,0.35), inset 0 0 4px rgba(0,255,140,0.08)',
                       background: '#1c0808',
                       display: 'flex',
                       flexDirection: 'column',
@@ -298,7 +298,7 @@ export default function GamePage() {
                                   ? 'linear-gradient(135deg,#00ff8c,#b7ff00)'
                                   : isCalled
                                   ? 'linear-gradient(135deg,#166534,#22c55e)'
-                                  : '#1e0909',
+                                  : '#05251a',
                                 border: (isFree || isCalled) ? 'none' : '1px solid #3a1212',
                                 fontSize: isFree ? 9 : 7,
                                 fontWeight: 700,
@@ -327,7 +327,7 @@ export default function GamePage() {
             borderRadius: 10,
             overflow: 'hidden',
             border: '1.5px solid #b8860b',
-            background: 'linear-gradient(135deg, #1a0a00 0%, #2d1200 50%, #1a0a00 100%)',
+            background: 'linear-gradient(135deg, #05251a 0%, #08734a 50%, #05251a 100%)',
             boxShadow: '0 0 12px rgba(212,160,23,0.25)',
             padding: '8px 10px',
           }}>
@@ -442,7 +442,7 @@ export default function GamePage() {
 function StatChip({ label, value, accent }: { label: string; value: string; accent?: string }) {
   return (
     <div style={{
-      background: '#1e0909', border: '1px solid #00c878',
+      background: '#05251a', border: '1px solid #00c878',
       borderRadius: 6, padding: '3px 7px',
       display: 'flex', flexDirection: 'column', alignItems: 'center',
     }}>

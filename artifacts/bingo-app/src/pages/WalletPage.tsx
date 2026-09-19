@@ -15,7 +15,7 @@ export default function WalletPage() {
     <div
       style={{
         minHeight: '100vh',
-        background: 'radial-gradient(ellipse at 50% 35%, #2e0d10 0%, #180608 70%)',
+        background: 'radial-gradient(ellipse at 50% 35%, #06452a 0%, #031b14 70%)',
         display: 'flex',
         flexDirection: 'column',
         padding: '0 16px 100px',
@@ -129,7 +129,7 @@ export default function WalletPage() {
                   {wageringCompleted.toFixed(2)} / {wageringRequired.toFixed(2)} ብር ({wageringPct.toFixed(0)}%)
                 </span>
               </div>
-              <div style={{ background: '#2a0a0a', borderRadius: 4, height: 6, overflow: 'hidden' }}>
+              <div style={{ background: '#05251a', borderRadius: 4, height: 6, overflow: 'hidden' }}>
                 <div
                   style={{
                     height: '100%',
@@ -172,7 +172,7 @@ export default function WalletPage() {
             flex: 1,
             padding: '14px 0',
             fontSize: 14,
-            border: '1.5px solid #c0392b',
+            border: '1.5px solid #00ff8c',
             background: 'transparent',
             borderRadius: 50,
             color: '#D4A017',
@@ -195,7 +195,7 @@ export default function WalletPage() {
         style={{
           marginTop: 20,
           padding: '12px 14px',
-          background: '#1e0a0a',
+          background: '#05251a',
           border: '1px solid #3a1010',
           borderRadius: 10,
         }}

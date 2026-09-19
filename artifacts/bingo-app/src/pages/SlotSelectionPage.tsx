@@ -174,7 +174,7 @@ export default function SlotSelectionPage() {
   const waitingForNextRound = gamePhase === 'playing' && selectedSlots.length === 0
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 30%, #2e0d10 0%, #180608 70%)', position: 'relative' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'radial-gradient(ellipse at 50% 30%, #06452a 0%, #031b14 70%)', position: 'relative' }}>
 
       {/* Insufficient Balance Modal */}
       {showNoBalance && (
@@ -185,7 +185,7 @@ export default function SlotSelectionPage() {
           padding: '0 24px',
         }}>
           <div style={{
-            background: 'linear-gradient(145deg, #1e0909, #2d1212)',
+            background: 'linear-gradient(145deg, #05251a, #2d1212)',
             border: '1.5px solid #b8860b',
             borderRadius: 20,
             padding: '32px 24px 24px',
@@ -196,7 +196,7 @@ export default function SlotSelectionPage() {
           }}>
             <div style={{
               width: 64, height: 64, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #c0392b, #7c0000)',
+              background: 'linear-gradient(135deg, #00ff8c, #00c96b)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               margin: '0 auto 20px',
               fontSize: 28,
@@ -221,7 +221,7 @@ export default function SlotSelectionPage() {
               style={{
                 width: '100%', padding: '13px 0',
                 borderRadius: 50, border: 'none', cursor: 'pointer',
-                background: 'linear-gradient(to right, #c0392b, #ff6b00)',
+                background: 'linear-gradient(to right, #00ff8c, #b7ff00)',
                 fontSize: 15, fontWeight: 800, color: '#fff',
                 letterSpacing: '0.08em',
               }}
@@ -251,7 +251,7 @@ export default function SlotSelectionPage() {
       )}
 
       {/* Header */}
-      <div style={{ background: '#1e0909', borderBottom: '1px solid #5c1a1a', padding: '10px 14px' }}>
+      <div style={{ background: '#05251a', borderBottom: '1px solid #08734a', padding: '10px 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {/* Back button + User info */}
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -259,19 +259,19 @@ export default function SlotSelectionPage() {
               <button
                 onClick={() => navigate('/')}
                 style={{
-                  background: 'none', border: '1.5px solid #5c1a1a', borderRadius: 8,
+                  background: 'none', border: '1.5px solid #08734a', borderRadius: 8,
                   color: '#aaa', cursor: 'pointer', padding: '5px 8px',
                   fontSize: 15, lineHeight: 1, flexShrink: 0,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}
-                title="ወደ ሎቢ ተመለስ"
+                title="ወደ ሎቢ ተመ��ስ"
               >
                 ←
               </button>
             )}
             <div style={{
               width: 36, height: 36, borderRadius: '50%',
-              background: 'linear-gradient(135deg, #c0392b, #ff6b00)',
+              background: 'linear-gradient(135deg, #00ff8c, #b7ff00)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               fontSize: 14, fontWeight: 700, color: '#fff', flexShrink: 0,
               border: '2px solid #d4a017'
@@ -292,7 +292,7 @@ export default function SlotSelectionPage() {
               </span>
               <span style={{
                 fontSize: 13, fontWeight: 700, fontFamily: 'monospace',
-                color: gamePhase === 'playing' ? '#888' : serverCountdown <= 5 ? '#ff4444' : '#e53e3e',
+                color: gamePhase === 'playing' ? '#888' : serverCountdown <= 5 ? '#ff4444' : '#39ff88',
               }}>
                 {gamePhase === 'playing' ? '—' : formatTime(serverCountdown)}
               </span>
@@ -340,7 +340,7 @@ export default function SlotSelectionPage() {
                 className={`slot-cell${isTaken ? ' highlighted' : ''}${isSelected ? ' highlighted' : ''}`}
                 onClick={() => toggleSlot(n)}
                 style={{
-                  ...(isSelected ? { background: '#4a1a00', boxShadow: '0 0 8px rgba(255,140,0,0.5)' } : {}),
+                  ...(isSelected ? { background: '#06452a', boxShadow: '0 0 8px rgba(255,140,0,0.5)' } : {}),
                   ...(isTaken ? { cursor: 'not-allowed', opacity: 0.5 } : {}),
                 }}
               >
@@ -354,7 +354,7 @@ export default function SlotSelectionPage() {
       {/* MY CARTELAS — fixed, never scrolls */}
       <div style={{
         flexShrink: 0,
-        background: '#180608',
+        background: '#031b14',
         borderTop: '1px solid #3a1212',
         padding: '10px 12px 0',
       }}>
@@ -368,7 +368,7 @@ export default function SlotSelectionPage() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 1 }}>
             <span style={{ fontSize: 9, fontWeight: 700, color: '#D4A017', letterSpacing: '0.08em' }}>🏆 JACKPOT (ETB)</span>
             <div style={{
-              background: '#1e0909', border: '1px solid #5c1a1a',
+              background: '#05251a', border: '1px solid #08734a',
               borderRadius: 8, padding: '3px 10px',
               fontSize: 11, fontWeight: 700, color: '#fff'
             }}>
@@ -411,7 +411,7 @@ export default function SlotSelectionPage() {
                           aspectRatio: '1',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           borderRadius: 3,
-                          background: num === 0 ? 'linear-gradient(135deg,#c0392b,#ff6b00)' : '#1e0909',
+                          background: num === 0 ? 'linear-gradient(135deg,#00ff8c,#b7ff00)' : '#05251a',
                           border: num === 0 ? 'none' : '1px solid #3a1212',
                           fontSize: num === 0 ? 10 : 8,
                           fontWeight: 700,
@@ -428,9 +428,9 @@ export default function SlotSelectionPage() {
                 <>
                   <div style={{
                     width: 34, height: 34, borderRadius: '50%',
-                    border: '1.5px dashed #5c1a1a',
+                    border: '1.5px dashed #08734a',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 20, color: '#5c1a1a'
+                    fontSize: 20, color: '#08734a'
                   }}>+</div>
                   <div style={{ fontSize: 11, fontWeight: 700, color: '#888', letterSpacing: '0.04em' }}>SLOT #{i + 1} EMPTY</div>
                   <div style={{ fontSize: 9, color: '#555', textAlign: 'center', letterSpacing: '0.03em' }}>TAP GRID (1-500) OR RANDOM PICK</div>
@@ -460,7 +460,7 @@ export default function SlotSelectionPage() {
               flex: 1, padding: '11px 0',
               display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               border: 'none', cursor: 'pointer', borderRadius: 50,
-              background: 'linear-gradient(to right, #c0392b, #ff6b00)',
+              background: 'linear-gradient(to right, #00ff8c, #b7ff00)',
             }}
           >
             <span style={{ fontSize: 13 }}>🎲</span>
