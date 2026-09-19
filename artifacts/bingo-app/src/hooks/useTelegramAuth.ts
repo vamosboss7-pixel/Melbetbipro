@@ -9,9 +9,7 @@ export interface Player {
   depositBalance: string
   mainBalance: string
   bonusBalance: string
-  wageringRequired?: string
-  wageringCompleted?: string
-  hasActiveWagering?: boolean
+  bonusWithdrawable?: boolean
   role: string
   preferredBalance?: 'main_first' | 'bonus_first'
 }

@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { db } from "../lib/db";
-import { playersTable, transactionsTable, gameRoundsTable, promoterApplicationsTable, pendingWithdrawalsTable } from "@workspace/db/schema";
+import { playersTable, transactionsTable, gameRoundsTable, promoterApplicationsTable, pendingWithdrawalsTable, pendingDepositsTable } from "@workspace/db/schema";
 import { eq, desc, count, sql, and } from "drizzle-orm";
 import { logger } from "../lib/logger";
 import { getBotUsername } from "../lib/bot";
@@ -30,6 +30,18 @@ router.get("/player/wallet", async (req: Request, res: Response) => {
 
     const player = players[0]!;
 
+    // Bonus balance becomes withdrawable once the player has a lifetime deposit >= 100 ETB.
+    const qualifyingDeposit = await db
+      .select({ id: pendingDepositsTable.id })
+      .from(pendingDepositsTable)
+      .where(and(
+        eq(pendingDepositsTable.telegramId, telegramId),
+        eq(pendingDepositsTable.status, "approved"),
+        sql`${pendingDepositsTable.amount}::numeric >= 100`
+      ))
+      .limit(1);
+    const bonusWithdrawable = qualifyingDeposit.length > 0;
+
     const transactions = await db
       .select()
       .from(transactionsTable)
@@ -41,9 +53,7 @@ router.get("/player/wallet", async (req: Request, res: Response) => {
       depositBalance: player.depositBalance,
       mainBalance: player.mainBalance,
       bonusBalance: player.bonusBalance,
-      wageringRequired: player.wageringRequired,
-      wageringCompleted: player.wageringCompleted,
-      hasActiveWagering: player.hasActiveWagering,
+      bonusWithdrawable,
       totalInviteBonus: player.totalInviteBonus,
       role: player.role,
       agentBalance: player.agentBalance,

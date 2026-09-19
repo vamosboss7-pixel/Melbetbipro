@@ -485,46 +485,31 @@ bot.callbackQuery(/^cmd_withdraw_(\d+)$/, async (ctx) => {
     const rows = await db.select().from(playersTable).where(eq(playersTable.telegramId, userId)).limit(1);
     if (!rows.length) { await ctx.reply("❌ አካዉንት አልተገኘም። /start ን ይጫኑ።"); return; }
     const mainBalance = Number(rows[0]!.mainBalance);
-    const hasActiveWagering = rows[0]!.hasActiveWagering;
-    const wageringRequired = Number(rows[0]!.wageringRequired);
-    const wageringCompleted = Number(rows[0]!.wageringCompleted);
+    const bonusBalance = Number(rows[0]!.bonusBalance);
 
-    if (hasActiveWagering && wageringCompleted < wageringRequired) {
-      const remaining = wageringRequired - wageringCompleted;
-      const remainingCards = Math.ceil(remaining / 10);
-      await ctx.reply(
-        `⛔ <b>Wagering requirement አልተሟላም</b>\n\n` +
-        `🎯 Wagering progress: <b>${wageringCompleted.toFixed(2)} / ${wageringRequired.toFixed(2)} ብር</b>\n` +
-        `📋 ቀሪ: <b>${remaining.toFixed(2)} ብር</b> | <b>${remainingCards} ካርዶች</b>\n\n` +
-        `📌 Bonus balance ሲያሸንፉ wagering ሲሟሉ ዊዝድሮው ማድረግ ይቻላል።`,
-        { parse_mode: "HTML" }
-      );
-      return;
-    }
-
-    if (mainBalance < 100) {
-      await ctx.reply(
-        `⚠️ ለዊዝድሮው ቢያንስ <b>100 ብር</b> Main Balance ያስፈልጋል።\n\n` +
-        `💰 Main Balance: <b>${mainBalance.toFixed(2)} ብር</b>`,
-        { parse_mode: "HTML" }
-      );
-      return;
-    }
-    // Lifetime deposit requirement: at least one approved deposit >= 50 ETB
-    const qualifyingDeposit = await db
-      .select({ id: pendingDepositsTable.id })
-      .from(pendingDepositsTable)
-      .where(and(
-        eq(pendingDepositsTable.telegramId, userId),
-        eq(pendingDepositsTable.status, "approved"),
-        sql`${pendingDepositsTable.amount}::numeric >= 50`
-      ))
-      .limit(1);
-    if (!qualifyingDeposit.length) {
+    // Lifetime deposit requirement: at least one approved deposit >= 50 ETB for any withdrawal.
+    if (!(await hasLifetimeDeposit(userId, WITHDRAW_MIN_DEPOSIT))) {
       await ctx.reply(
         `⛔ <b>ዊዝድሮው ማድረግ አይቻልም</b>\n\n` +
-        `ዊዝድሮው ለማድረግ ቢያንስ አንድ ጊዜ <b>50 ብር ወይም ከዚያ በላይ</b> ዲፖዚት ማድረግ ያስፈልጋል።\n\n` +
+        `ዊዝድሮው ለማድረግ ቢያንስ አንድ ጊዜ <b>${WITHDRAW_MIN_DEPOSIT} ብር ወይም ከዚያ በላይ</b> ዲፖዚት ማድረግ ያስፈልጋል።\n\n` +
         `📌 ዲፖዚት ካደረጉ በኋላ ዊዝድሮው ማድረግ ይቻላል።`,
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    // Bonus balance becomes withdrawable only with a lifetime deposit >= 100 ETB.
+    const bonusEligible = await hasLifetimeDeposit(userId, BONUS_WITHDRAW_MIN_DEPOSIT);
+    const withdrawable = mainBalance + (bonusEligible ? bonusBalance : 0);
+
+    if (withdrawable < 100) {
+      const bonusNote = !bonusEligible && bonusBalance > 0
+        ? `\n🎁 Bonus Balance: <b>${bonusBalance.toFixed(2)} ብር</b> — ለማውጣት ቢያንስ ${BONUS_WITHDRAW_MIN_DEPOSIT} ብር ዲፖዚት ያስፈልጋል።`
+        : "";
+      await ctx.reply(
+        `⚠️ ለዊዝድሮው ቢያንስ <b>100 ብር</b> ማውጣት የሚቻል ባላንስ ያስፈልጋል።\n\n` +
+        `💰 ማውጣት የሚቻል: <b>${withdrawable.toFixed(2)} ብር</b>` +
+        bonusNote,
         { parse_mode: "HTML" }
       );
       return;
@@ -533,7 +518,7 @@ bot.callbackQuery(/^cmd_withdraw_(\d+)$/, async (ctx) => {
     withdrawSessions.set(userId, { step: "amount", amount: 0, phone: "", accountName: "" });
     await ctx.reply(
       `💸 ማውጣት የሚፈልጉትን መጠን ያስገቡ:\n\n` +
-      `💰 Main Balance: <b>${mainBalance.toFixed(2)} ብር</b>\n\n` +
+      `💰 ማውጣት የሚቻል: <b>${withdrawable.toFixed(2)} ብር</b>\n\n` +
       `⚠️ ቢያንስ 100 ብር ማውጣት ይቻላል`,
       { parse_mode: "HTML" }
     );
@@ -676,7 +661,7 @@ bot.callbackQuery(/^cmd_promo_(\d+)$/, async (ctx) => {
   await ctx.answerCallbackQuery();
   clearAllSessions(userId);
   promoSessions.add(userId);
-  await ctx.reply(`🎟 ፕሮሞ ኮድ ያስገቡ:\n\nኮዱን ጽፈው ይላኩ 👇`);
+  await ctx.reply(`🎟 ፕ���ሞ ኮድ ያስገቡ:\n\nኮዱን ጽፈው ይላኩ 👇`);
 });
 
 // ── Support button ─────────────────────────────────────────────────────────────
@@ -935,14 +920,12 @@ bot.command("balance", async (ctx) => {
     const depositBalance = Number(rows[0]!.depositBalance);
     const mainBalance = Number(rows[0]!.mainBalance);
     const bonusBalance = Number(rows[0]!.bonusBalance);
-    const wageringRequired = Number(rows[0]!.wageringRequired);
-    const wageringCompleted = Number(rows[0]!.wageringCompleted);
-    const hasActiveWagering = rows[0]!.hasActiveWagering;
     const isAgent = rows[0]!.role === "agent";
     const agentBalance = Number(rows[0]!.agentBalance);
-    const wageringLine = hasActiveWagering
-      ? `\n⚡ <b>Wagering:</b> ${wageringCompleted.toFixed(2)} / ${wageringRequired.toFixed(2)} ብር (${Math.min(100, (wageringCompleted / wageringRequired * 100)).toFixed(0)}%)\n`
-      : "";
+    const bonusEligible = await hasLifetimeDeposit(user.id, BONUS_WITHDRAW_MIN_DEPOSIT);
+    const bonusLine = bonusEligible
+      ? `   └ ቦነስ ብር — ማውጣት ይቻላል ✅\n`
+      : `   └ ቦነስ ብር — ለማውጣት ቢያንስ ${BONUS_WITHDRAW_MIN_DEPOSIT} ብር ዲፖዚት ያስፈልጋል\n`;
     await ctx.reply(
       `💳 <b>ዋሌት ዝርዝር</b>\n\n` +
       `💳 <b>Deposit Balance:</b> <b>${depositBalance.toFixed(2)} ብር</b>\n` +
@@ -950,10 +933,9 @@ bot.command("balance", async (ctx) => {
       `💰 <b>Main Balance:</b> <b>${mainBalance.toFixed(2)} ብር</b>\n` +
       `   └ የጨዋታ ሽልማት — ማውጣት ይቻላል\n\n` +
       `🎁 <b>Bonus Balance:</b> <b>${bonusBalance.toFixed(2)} ብር</b>\n` +
-      `   └ ቦነስ ብር — Wagering ሲጠናቀቅ ማውጣት ይቻላል\n` +
-      wageringLine +
+      bonusLine +
       (isAgent ? `\n💼 <b>Agent Wallet: ${agentBalance.toFixed(2)} ብር</b>\n` : "") +
-      `\n📌 Bonus Balance ለማውጣት Wagering requirement ማሟላት ያስፈልጋል።`,
+      `\n📌 Bonus Balance ለማውጣት በላይፍታይም ቢያንስ አንድ ጊዜ ${BONUS_WITHDRAW_MIN_DEPOSIT} ብር ዲፖዚት ማድረግ ያስፈልጋል።`,
       { parse_mode: "HTML" }
     );
   } catch (err) {
@@ -1010,48 +992,31 @@ bot.command("withdraw", async (ctx) => {
     const rows = await db.select().from(playersTable).where(eq(playersTable.telegramId, user.id)).limit(1);
     if (!rows.length) { await ctx.reply("❌ አካዉንት አልተገኘም። /start ን ይጫኑ።"); return; }
     const mainBalance = Number(rows[0]!.mainBalance);
-    const hasActiveWagering = rows[0]!.hasActiveWagering;
-    const wageringRequired = Number(rows[0]!.wageringRequired);
-    const wageringCompleted = Number(rows[0]!.wageringCompleted);
+    const bonusBalance = Number(rows[0]!.bonusBalance);
 
-    // Check wagering requirement before allowing withdrawal
-    if (hasActiveWagering && wageringCompleted < wageringRequired) {
-      const remaining = wageringRequired - wageringCompleted;
-      const remainingCards = Math.ceil(remaining / 10);
-      await ctx.reply(
-        `⛔ <b>Wagering requirement አልተሟላም</b>\n\n` +
-        `🎯 Wagering progress: <b>${wageringCompleted.toFixed(2)} / ${wageringRequired.toFixed(2)} ብር</b>\n` +
-        `📋 ቀሪ wagering: <b>${remaining.toFixed(2)} ብር</b>\n` +
-        `🃏 ቀሪ ካርዶች: <b>${remainingCards} ካርዶች</b>\n\n` +
-        `📌 Bonus balance ካሸነፉ በኋላ wagering ሲሟሉ ዊዝድሮው ማድረግ ይቻላል።`,
-        { parse_mode: "HTML" }
-      );
-      return;
-    }
-
-    if (mainBalance < 100) {
-      await ctx.reply(
-        `⚠️ ለዊዝድሮው ቢያንስ <b>100 ብር</b> Main Balance ያስፈልጋል።\n\n` +
-        `💰 Main Balance: <b>${mainBalance.toFixed(2)} ብር</b>`,
-        { parse_mode: "HTML" }
-      );
-      return;
-    }
-    // Lifetime deposit requirement: at least one approved deposit >= 50 ETB
-    const qualifyingDeposit = await db
-      .select({ id: pendingDepositsTable.id })
-      .from(pendingDepositsTable)
-      .where(and(
-        eq(pendingDepositsTable.telegramId, user.id),
-        eq(pendingDepositsTable.status, "approved"),
-        sql`${pendingDepositsTable.amount}::numeric >= 50`
-      ))
-      .limit(1);
-    if (!qualifyingDeposit.length) {
+    // Lifetime deposit requirement: at least one approved deposit >= 50 ETB for any withdrawal.
+    if (!(await hasLifetimeDeposit(user.id, WITHDRAW_MIN_DEPOSIT))) {
       await ctx.reply(
         `⛔ <b>ዊዝድሮው ማድረግ አይቻልም</b>\n\n` +
-        `ዊዝድሮው ለማድረግ ቢያንስ አንድ ጊዜ <b>50 ብር ወይም ከዚያ በላይ</b> ዲፖዚት ማድረግ ያስፈልጋል።\n\n` +
+        `ዊዝድሮው ለማድረግ ቢያንስ አንድ ጊዜ <b>${WITHDRAW_MIN_DEPOSIT} ብር ወይም ከዚያ በላይ</b> ዲፖዚት ማድረግ ያስፈልጋል።\n\n` +
         `📌 ዲፖዚት ካደረጉ በኋላ ዊዝድሮው ማድረግ ይቻላል።`,
+        { parse_mode: "HTML" }
+      );
+      return;
+    }
+
+    // Bonus balance becomes withdrawable only with a lifetime deposit >= 100 ETB.
+    const bonusEligible = await hasLifetimeDeposit(user.id, BONUS_WITHDRAW_MIN_DEPOSIT);
+    const withdrawable = mainBalance + (bonusEligible ? bonusBalance : 0);
+
+    if (withdrawable < 100) {
+      const bonusNote = !bonusEligible && bonusBalance > 0
+        ? `\n🎁 Bonus Balance: <b>${bonusBalance.toFixed(2)} ብር</b> — ለማውጣት ቢያንስ ${BONUS_WITHDRAW_MIN_DEPOSIT} ብር ዲፖዚት ያስፈልጋል።`
+        : "";
+      await ctx.reply(
+        `⚠️ ለዊዝድሮው ቢያንስ <b>100 ብር</b> ማውጣት የሚቻል ባላንስ ያስፈልጋል።\n\n` +
+        `💰 ማውጣት የሚቻል: <b>${withdrawable.toFixed(2)} ብር</b>` +
+        bonusNote,
         { parse_mode: "HTML" }
       );
       return;
@@ -1060,7 +1025,7 @@ bot.command("withdraw", async (ctx) => {
     withdrawSessions.set(user.id, { step: "amount", amount: 0, phone: "", accountName: "" });
     await ctx.reply(
       `💸 ማውጣት የሚፈልጉትን መጠን ያስገቡ:\n\n` +
-      `💰 Main Balance: <b>${mainBalance.toFixed(2)} ብር</b>\n\n` +
+      `💰 ማውጣት የሚቻል: <b>${withdrawable.toFixed(2)} ብር</b>\n\n` +
       `⚠️ ቢያንስ 100 ብር ማውጣት ይቻላል`,
       { parse_mode: "HTML" }
     );
@@ -2037,6 +2002,25 @@ bot.callbackQuery(/^lbox_(\d+)_(\d+)$/, async (ctx) => {
   }
 });
 
+// Minimum general lifetime deposit required for any withdrawal.
+const WITHDRAW_MIN_DEPOSIT = 50;
+// Minimum lifetime deposit required to make the bonus balance withdrawable.
+const BONUS_WITHDRAW_MIN_DEPOSIT = 100;
+
+// Returns true if the player has at least one approved deposit >= minAmount (lifetime).
+async function hasLifetimeDeposit(telegramId: number, minAmount: number): Promise<boolean> {
+  const rows = await db
+    .select({ id: pendingDepositsTable.id })
+    .from(pendingDepositsTable)
+    .where(and(
+      eq(pendingDepositsTable.telegramId, telegramId),
+      eq(pendingDepositsTable.status, "approved"),
+      sql`${pendingDepositsTable.amount}::numeric >= ${minAmount}`
+    ))
+    .limit(1);
+  return rows.length > 0;
+}
+
 async function handleWithdrawRequest(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ctx: any,
@@ -2068,54 +2052,41 @@ async function handleWithdrawRequest(
       return;
     }
     // Re-check wagering and deduct mainBalance atomically in a transaction
+    // Bonus balance becomes withdrawable only with a lifetime deposit >= 100 ETB.
+    const bonusEligible = await hasLifetimeDeposit(telegramId, BONUS_WITHDRAW_MIN_DEPOSIT);
+
     const txResult = await db.transaction(async (tx) => {
       const rows = await tx.execute(
-        sql`SELECT main_balance, has_active_wagering, wagering_required, wagering_completed, bonus_balance FROM players WHERE telegram_id = ${telegramId} FOR UPDATE LIMIT 1`
+        sql`SELECT main_balance, bonus_balance FROM players WHERE telegram_id = ${telegramId} FOR UPDATE LIMIT 1`
       );
-      type PlayerRow = { main_balance: string; has_active_wagering: boolean; wagering_required: string; wagering_completed: string; bonus_balance: string };
+      type PlayerRow = { main_balance: string; bonus_balance: string };
       const player = rows.rows[0] as PlayerRow | undefined;
       if (!player) return { error: "not_found" as const };
 
-      const hasActiveWagering = player.has_active_wagering;
-      const wageringRequired = Number(player.wagering_required);
-      const wageringCompleted = Number(player.wagering_completed);
       const mainBalance = Number(player.main_balance);
-
-      if (hasActiveWagering && wageringCompleted < wageringRequired) {
-        const remaining = wageringRequired - wageringCompleted;
-        return { error: "wagering_incomplete" as const, remaining, wageringRequired, wageringCompleted };
-      }
-
-      if (mainBalance < amount) {
-        return { error: "insufficient" as const, mainBalance };
-      }
-
-      // If wagering was active and now met, transfer bonusBalance → mainBalance and reset wagering
       const bonusBalance = Number(player.bonus_balance);
-      if (hasActiveWagering && wageringCompleted >= wageringRequired && bonusBalance > 0) {
+
+      // If eligible, convert bonus balance into main balance so it can be withdrawn.
+      if (bonusEligible && bonusBalance > 0) {
         await tx.update(playersTable).set({
           mainBalance: sql`${playersTable.mainBalance} + ${bonusBalance}`,
           bonusBalance: "0.00",
-          wageringRequired: "0.00",
-          wageringCompleted: "0.00",
-          hasActiveWagering: false,
         }).where(eq(playersTable.telegramId, telegramId));
         await tx.insert(transactionsTable).values({
           telegramId,
-          type: "wagering_conversion",
+          type: "bonus_conversion",
           amount: `${bonusBalance}`,
           status: "approved",
-          note: `Bonus balance converted to main after wagering met`,
+          note: `Bonus balance converted to main after qualifying ${BONUS_WITHDRAW_MIN_DEPOSIT} ብር deposit`,
         });
-      } else if (hasActiveWagering && wageringCompleted >= wageringRequired) {
-        await tx.update(playersTable).set({
-          wageringRequired: "0.00",
-          wageringCompleted: "0.00",
-          hasActiveWagering: false,
-        }).where(eq(playersTable.telegramId, telegramId));
       }
 
-      // Deduct from mainBalance
+      const withdrawable = mainBalance + (bonusEligible ? bonusBalance : 0);
+      if (withdrawable < amount) {
+        return { error: "insufficient" as const, withdrawable };
+      }
+
+      // Deduct from mainBalance (bonus has already been merged in when eligible)
       await tx.update(playersTable)
         .set({ mainBalance: sql`${playersTable.mainBalance} - ${amount}` })
         .where(eq(playersTable.telegramId, telegramId));
@@ -2127,22 +2098,10 @@ async function handleWithdrawRequest(
       await ctx.reply("❌ አካውንት አልተገኘም።");
       return;
     }
-    if (txResult.error === "wagering_incomplete") {
-      const remaining = (txResult as { remaining: number; wageringRequired: number; wageringCompleted: number }).remaining;
-      const remainingCards = Math.ceil(remaining / 10);
-      await ctx.reply(
-        `⛔ <b>Wagering requirement አልተሟላም</b>\n\n` +
-        `📋 ቀሪ wagering: <b>${remaining.toFixed(2)} ብር</b> (~${remainingCards} ካርዶች)\n\n` +
-        `📌 ዊዝድሮው ማድረግ አልቻልም።`,
-        { parse_mode: "HTML" }
-      );
-      withdrawSessions.delete(telegramId);
-      return;
-    }
     if (txResult.error === "insufficient") {
-      const mainBalance = (txResult as { mainBalance: number }).mainBalance;
+      const withdrawable = (txResult as { withdrawable: number }).withdrawable;
       await ctx.reply(
-        `❌ በቂ Main Balance የለም: <b>${mainBalance.toFixed(2)} ብር</b>`,
+        `❌ በቂ ማውጣት የሚቻል ባላንስ የለም: <b>${withdrawable.toFixed(2)} ብር</b>`,
         { parse_mode: "HTML" }
       );
       withdrawSessions.delete(telegramId);

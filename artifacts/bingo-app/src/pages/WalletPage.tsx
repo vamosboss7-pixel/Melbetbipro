@@ -6,10 +6,7 @@ export default function WalletPage() {
   const depositBal = parseFloat(player?.depositBalance ?? '0')
   const mainBal = parseFloat(player?.mainBalance ?? '0')
   const bonusBal = parseFloat(player?.bonusBalance ?? '0')
-  const wageringRequired = parseFloat(player?.wageringRequired ?? '0')
-  const wageringCompleted = parseFloat(player?.wageringCompleted ?? '0')
-  const hasActiveWagering = player?.hasActiveWagering ?? false
-  const wageringPct = wageringRequired > 0 ? Math.min(100, (wageringCompleted / wageringRequired) * 100) : 0
+  const bonusWithdrawable = player?.bonusWithdrawable ?? false
 
   return (
     <div
@@ -92,7 +89,7 @@ export default function WalletPage() {
           </div>
         </div>
 
-        {/* Bonus Balance — non-withdrawable, wagering required */}
+        {/* Bonus Balance — withdrawable only after a lifetime deposit >= 100 ETB */}
         <div
           className="game-card"
           style={{ padding: '20px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}
@@ -106,7 +103,9 @@ export default function WalletPage() {
                 <div style={{ fontSize: 11, color: '#aaa', fontWeight: 600, letterSpacing: '0.06em', marginBottom: 2 }}>
                   ቦነስ ባላንስ
                 </div>
-                <div style={{ fontSize: 11, color: '#e05c00' }}>ማውጣት አይቻልም · Wagering ያስፈልጋል</div>
+                <div style={{ fontSize: 11, color: bonusWithdrawable ? '#22c55e' : '#e05c00' }}>
+                  {bonusWithdrawable ? 'ማውጣት ይቻላል' : 'ማውጣት አይቻልም · 100 ብር ዲፖዚት ያስፈልጋል'}
+                </div>
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
@@ -120,26 +119,11 @@ export default function WalletPage() {
             </div>
           </div>
 
-          {/* Wagering progress bar */}
-          {hasActiveWagering && (
+          {!bonusWithdrawable && bonusBal > 0 && (
             <div style={{ paddingTop: 4 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-                <span style={{ fontSize: 10, color: '#aaa' }}>⚡ Wagering Progress</span>
-                <span style={{ fontSize: 10, color: '#E91E8C' }}>
-                  {wageringCompleted.toFixed(2)} / {wageringRequired.toFixed(2)} ብር ({wageringPct.toFixed(0)}%)
-                </span>
-              </div>
-              <div style={{ background: '#05251a', borderRadius: 4, height: 6, overflow: 'hidden' }}>
-                <div
-                  style={{
-                    height: '100%',
-                    width: `${wageringPct}%`,
-                    background: 'linear-gradient(90deg, #E91E8C, #D4A017)',
-                    borderRadius: 4,
-                    transition: 'width 0.3s ease',
-                  }}
-                />
-              </div>
+              <p style={{ fontSize: 10, color: '#aaa', lineHeight: 1.6, margin: 0 }}>
+                ⓘ ቦነስ ባላንስ ለማውጣት በላይፍታይም ቢያንስ አንድ ጊዜ <b style={{ color: '#E91E8C' }}>100 ብር</b> ዲፖዚት ማድረግ ያስፈልጋል።
+              </p>
             </div>
           )}
         </div>

@@ -445,37 +445,13 @@ export class GameEngine {
           let updatedBalances: { depositBalance: string; mainBalance: string; bonusBalance: string } | null = null;
 
           if (usedBonus) {
-            // Win from bonus-funded game → credit bonusBalance + apply wagering logic
-            updatedBalances = await db.transaction(async (tx) => {
-              const [playerRow] = await tx
-                .select({ hasActiveWagering: playersTable.hasActiveWagering })
-                .from(playersTable)
-                .where(eq(playersTable.telegramId, telegramId))
-                .limit(1);
-              if (!playerRow) return null;
-
-              if (!playerRow.hasActiveWagering) {
-                // First win using bonus — activate 10× wagering requirement
-                const wagerRequired = prize * appSettings.getNum("wageringMultiplier");
-                const [updated] = await tx.update(playersTable)
-                  .set({
-                    bonusBalance: sql`${playersTable.bonusBalance} + ${prize}`,
-                    wageringRequired: `${wagerRequired}`,
-                    wageringCompleted: "0.00",
-                    hasActiveWagering: true,
-                  })
-                  .where(eq(playersTable.telegramId, telegramId))
-                  .returning({ depositBalance: playersTable.depositBalance, mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance });
-                return updated ?? null;
-              } else {
-                // Subsequent win — add to bonusBalance only
-                const [updated] = await tx.update(playersTable)
-                  .set({ bonusBalance: sql`${playersTable.bonusBalance} + ${prize}` })
-                  .where(eq(playersTable.telegramId, telegramId))
-                  .returning({ depositBalance: playersTable.depositBalance, mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance });
-                return updated ?? null;
-              }
-            });
+            // Win from bonus-funded game → credit bonusBalance (no wagering).
+            // Bonus is withdrawable once the player has a lifetime deposit >= 100 ETB.
+            const [updated] = await db.update(playersTable)
+              .set({ bonusBalance: sql`${playersTable.bonusBalance} + ${prize}` })
+              .where(eq(playersTable.telegramId, telegramId))
+              .returning({ depositBalance: playersTable.depositBalance, mainBalance: playersTable.mainBalance, bonusBalance: playersTable.bonusBalance });
+            updatedBalances = updated ?? null;
           } else {
             // Win from main/deposit-funded game → credit mainBalance
             const [updated] = await db.update(playersTable)
@@ -500,22 +476,6 @@ export class GameEngine {
               mainBalance: updatedBalances.mainBalance,
               bonusBalance: updatedBalances.bonusBalance,
             });
-          }
-        } else if (!isWinner) {
-          // Zero balance reset: if loser's bonusBalance is now 0, clear wagering state
-          try {
-            const [playerRow] = await db
-              .select({ bonusBalance: playersTable.bonusBalance })
-              .from(playersTable)
-              .where(eq(playersTable.telegramId, telegramId))
-              .limit(1);
-            if (Number(playerRow?.bonusBalance ?? 1) === 0) {
-              await db.update(playersTable)
-                .set({ wageringRequired: "0.00", wageringCompleted: "0.00", hasActiveWagering: false })
-                .where(eq(playersTable.telegramId, telegramId));
-            }
-          } catch (zeroErr) {
-            logger.error({ zeroErr, telegramId }, "Failed zero balance reset check for loser");
           }
         }
       } catch (err) {
@@ -1179,9 +1139,6 @@ export class GameEngine {
           }
           if (bonusDeduct > 0) {
             updateSet["bonusBalance"] = sql`${playersTable.bonusBalance} - ${bonusDeduct}`;
-            if (row.has_active_wagering) {
-              updateSet["wageringCompleted"] = sql`${playersTable.wageringCompleted} + ${bonusDeduct}`;
-            }
           }
 
           const [updated] = await tx.update(playersTable)
@@ -1227,17 +1184,6 @@ export class GameEngine {
         bonus: prevRound.bonus + deductResult.bonusDeduct,
         deposit: prevRound.deposit + deductResult.depositDeduct,
       });
-
-      // Zero balance reset: if bonusBalance hits 0, clear wagering state
-      if (Number(deductResult.bonusBalance) === 0) {
-        try {
-          await db.update(playersTable)
-            .set({ wageringRequired: "0.00", wageringCompleted: "0.00", hasActiveWagering: false })
-            .where(eq(playersTable.telegramId, player.telegramId));
-        } catch (err) {
-          logger.error({ err }, "Failed wagering reset on zero bonus balance");
-        }
-      }
 
       // Emit updated balances immediately
       socket.emit("balance_update", {
