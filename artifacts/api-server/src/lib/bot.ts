@@ -270,23 +270,13 @@ bot.command("start", async (ctx) => {
       });
       logger.info({ telegramId: user.id, invitedBy: validReferrer }, "New player registered via /start");
 
-      // Grant agent join bonus if referrer is an agent
+      // Registration and inviter bonuses are awarded once for each new player.
+      await grantSignupBonuses(user.id, validReferrer, user.first_name);
+
+      // Preserve the separate agent-wallet join bonus for agent referrers.
       if (validReferrer) {
         void grantAgentJoinBonus(validReferrer, user.first_name);
       }
-
-      // Grant 20 ETB signup bonus to bonusBalance (non-withdrawable until wagering met)
-      const SIGNUP_BONUS_ETB = 20;
-      await db.update(playersTable).set({
-        bonusBalance: sql`${playersTable.bonusBalance} + ${SIGNUP_BONUS_ETB}`,
-      }).where(eq(playersTable.telegramId, user.id));
-      await db.insert(transactionsTable).values({
-        telegramId: user.id,
-        type: "register_bonus",
-        amount: `${SIGNUP_BONUS_ETB}`,
-        status: "approved",
-        note: "20 ብር የምዝገባ ቦነስ (Bonus Balance)",
-      });
     } else {
       // Update name/username in case they changed
       await db.update(playersTable).set({
@@ -353,7 +343,7 @@ bot.command("start", async (ctx) => {
 
   // Full welcome text (for plain text messages — up to 4096 chars)
   const welcomeText =
-    `🎱 <b>እንኳን ወደ Melbet BINGO መጡ!</b>\n\n` +
+    `🎱 <b>እንኳን ወደ KEFTA BINGO መጡ!</b>\n\n` +
     `🎮 <b>ለጀማሪዎች — እንዴት ይጀምሩ?</b>\n` +
     `1️⃣ <b>👤 Register</b> — አካዉንት ይክፈቱ\n` +
     `2️⃣ <b>🏦 Add Funds</b> — ከ10ብር ጀምሮ ያስገቡ\n` +
@@ -370,7 +360,7 @@ bot.command("start", async (ctx) => {
 
   // Short caption for photo messages (Telegram limit: 1024 chars)
   const welcomeCaption =
-    `🎱 <b>እንኳን ወደ Melbet BINGO መጡ!</b>\n\n` +
+    `🎱 <b>እንኳን ወደ KEFTA BINGO መጡ!</b>\n\n` +
     `1️⃣ 👤 Register — አካዉንት ይክፈቱ\n` +
     `2️⃣ 🏦 Add Funds — ከ10ብር ጀምሮ ያስገቡ\n` +
     `3️⃣ 🎮 Play Game — ጨዋታ ይጀምሩ!\n\n` +
@@ -437,7 +427,7 @@ bot.command("start", async (ctx) => {
         ],
       ];
       await ctx.reply(
-        `🎱 <b>እንኳን ወደ Melbet BINGO መጡ!</b>\n\n👇 ቁልፍ ይምረጡ`,
+        `🎱 <b>እንኳን ወደ KEFTA BINGO መጡ!</b>\n\n👇 ቁልፍ ይምረጡ`,
         { parse_mode: "HTML", reply_markup: { inline_keyboard: fallbackKb } }
       );
     } catch { /* non-fatal */ }
@@ -561,8 +551,8 @@ bot.callbackQuery(/^cmd_invite_(\d+)$/, async (ctx) => {
   if (!botUsername) { await ctx.reply("❌ ሊንክ ማምጣት አልተቻለም።"); return; }
   const inviteLink = `https://t.me/${botUsername}?start=ref_${userId}`;
   const firstName = ctx.from.first_name ?? "ወዳጆ";
-  const shareText = `🎁 ${firstName} ወደ Melbet BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!\n\n${inviteLink}`;
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`🎁 ${firstName} ወደ Melbet BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!`)}`;
+  const shareText = `🎁 ${firstName} ወደ KEFTA BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!\n\n${inviteLink}`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`🎁 ${firstName} ወደ KEFTA BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!`)}`;
   await ctx.reply(shareText, {
     reply_markup: {
       inline_keyboard: [[{ text: "🔗 ሊንኩን ላክ (Share Link)", url: shareUrl }]],
@@ -731,7 +721,7 @@ bot.callbackQuery(/^cmd_howtoplay_(\d+)$/, async (ctx) => {
   if (ctx.from.id !== userId) return ctx.answerCallbackQuery();
   await ctx.answerCallbackQuery();
   await ctx.reply(
-    `📜 <b>የMelbet ቢንጎ ጨዋታ ህጎች</b>\n\n` +
+    `📜 <b>የKEFTA ቢንጎ ጨዋታ ህጎች</b>\n\n` +
     `🃏 <b>መጫወቻ ካርድ</b>\n\n` +
     `1. ጨዋታውን ለመጀመር ከሚመጣልን ከ1-500 የመጫወቻ ካርድ ውስጥ አንዱን እንመርጣለን።\n\n` +
     `2. የመጫወቻ ካርዱ ላይ በቀይ ቀለም የተመረጡ ቁጥሮች የሚያሳዩት መጫወቻ ካርድ በሌላ ተጫዋች መመረጡን ነው።\n\n` +
@@ -901,8 +891,8 @@ bot.command("invite", async (ctx) => {
   }
   const inviteLink = `https://t.me/${botUsername}?start=ref_${user.id}`;
   const firstName = user.first_name ?? "ወዳጆ";
-  const shareText = `🎁 ${firstName} ወደ Melbet BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!\n\n${inviteLink}`;
-  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`🎁 ${firstName} ወደ Melbet BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!`)}`;
+  const shareText = `🎁 ${firstName} ወደ KEFTA BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!\n\n${inviteLink}`;
+  const shareUrl = `https://t.me/share/url?url=${encodeURIComponent(inviteLink)}&text=${encodeURIComponent(`🎁 ${firstName} ወደ KEFTA BINGO ወዳጅ ዘመድ ይጋበዙ እና ሸልማቶችን ያግኙ!`)}`;
   await ctx.reply(shareText, {
     reply_markup: {
       inline_keyboard: [[{ text: "🔗 ሊንኩን ላክ (Share Link)", url: shareUrl }]],
@@ -1187,6 +1177,61 @@ bot.command("unban", async (ctx) => {
     } catch { /* player may have blocked bot */ }
   } catch (err) { logger.error({ err }, "unban command error"); }
 });
+
+// ── Shared: grant registration and inviter bonuses ─────────────────────────────
+export async function grantSignupBonuses(
+  newUserTelegramId: number,
+  referrerTelegramId: number | null,
+  newUserFirstName: string,
+): Promise<void> {
+  const SIGNUP_BONUS_ETB = 30;
+  const INVITE_BONUS_ETB = 10;
+
+  try {
+    await db.transaction(async (tx) => {
+      await tx.update(playersTable).set({
+        bonusBalance: sql`${playersTable.bonusBalance} + ${SIGNUP_BONUS_ETB}`,
+      }).where(eq(playersTable.telegramId, newUserTelegramId));
+      await tx.insert(transactionsTable).values({
+        telegramId: newUserTelegramId,
+        type: "register_bonus",
+        amount: `${SIGNUP_BONUS_ETB}`,
+        status: "approved",
+        note: `${SIGNUP_BONUS_ETB} ብር የምዝገባ ቦነስ (Bonus Balance)`,
+      });
+
+      if (referrerTelegramId) {
+        await tx.update(playersTable).set({
+          bonusBalance: sql`${playersTable.bonusBalance} + ${INVITE_BONUS_ETB}`,
+          totalInviteBonus: sql`${playersTable.totalInviteBonus} + ${INVITE_BONUS_ETB}`,
+        }).where(eq(playersTable.telegramId, referrerTelegramId));
+        await tx.insert(transactionsTable).values({
+          telegramId: referrerTelegramId,
+          type: "invite_bonus",
+          amount: `${INVITE_BONUS_ETB}`,
+          status: "approved",
+          note: `${INVITE_BONUS_ETB} ብር የጥሪ ቦነስ — ${newUserFirstName} ተመዝግቧል`,
+        });
+      }
+    });
+
+    if (referrerTelegramId) {
+      try {
+        await bot.api.sendMessage(
+          referrerTelegramId,
+          `🎉 <b>የጥሪ ቦነስ ደረሰዎ!</b>\n\n` +
+          `👥 ${esc(newUserFirstName)} በጥሪዎ ተመዝግቧል\n` +
+          `🎁 <b>${INVITE_BONUS_ETB.toFixed(2)} ብር</b> ወደ Bonus Balance ተጨምሯል!`,
+          { parse_mode: "HTML" },
+        );
+      } catch { /* non-fatal */ }
+    }
+
+    logger.info({ newUserTelegramId, referrerTelegramId }, "Signup and invite bonuses granted");
+  } catch (err) {
+    logger.error({ err, newUserTelegramId, referrerTelegramId }, "grantSignupBonuses error");
+  }
+}
 
 // ── Shared: grant agent join bonus (5 ETB to agentBalance) ───────────────────
 export async function grantAgentJoinBonus(referrerTelegramId: number, newUserFirstName: string): Promise<void> {
