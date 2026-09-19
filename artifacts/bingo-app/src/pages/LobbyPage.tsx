@@ -23,7 +23,7 @@ export default function LobbyPage() {
     >
       <img
         src={LANDING_IMAGE}
-        alt="Melbit Bingo landing page with game features, winning rules, and an Enter Game call to action"
+        alt="Kefta Bingo landing page with game features, winning rules, and an Enter Game call to action"
         style={{
           display: 'block',
           width: '100%',
@@ -32,6 +32,30 @@ export default function LobbyPage() {
           objectPosition: 'center top',
         }}
       />
+      <div
+        aria-hidden="true"
+        style={{
+          position: 'absolute',
+          top: '4.5%',
+          left: '10%',
+          width: '80%',
+          height: '6.5%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f7f7f5',
+          color: '#111',
+          fontFamily: 'Arial, sans-serif',
+          fontSize: 'clamp(20px, 7vw, 42px)',
+          fontWeight: 900,
+          letterSpacing: '0.02em',
+          lineHeight: 1,
+          zIndex: 1,
+          pointerEvents: 'none',
+        }}
+      >
+        KEFTA BINGO
+      </div>
       <button
         type="button"
         aria-label="Enter game"

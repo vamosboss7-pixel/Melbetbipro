@@ -259,7 +259,7 @@ export default function SlotSelectionPage() {
               </div>
               <div>
                 <div style={{ fontSize: 11, fontWeight: 700, color: '#D4A017', letterSpacing: '0.04em' }}>{displayName}</div>
-                <div style={{ fontSize: 10, color: '#999', letterSpacing: '0.02em' }}>MELBIT BINGO</div>
+                <div style={{ fontSize: 10, color: '#999', letterSpacing: '0.02em' }}>KEFTA BINGO</div>
               </div>
             </div>
             {gamePhase === 'waiting' && (
